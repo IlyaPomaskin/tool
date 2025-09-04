@@ -71,10 +71,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         openAIService.onTranscriptionReceived = { [weak self] transcription in
             self?.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
             self?.button.title = "Hello World"
+            self?.openAIService.callResponseAPI(with: transcription)
         }
         
         openAIService.onTranscriptionError = { [weak self] error in
             self?.textLabel.stringValue = "❌ Ошибка:\n\n\(error)"
+            self?.button.title = "Hello World"
+        }
+        
+        // Настраиваем callback'и ResponseAPI для обновления UI
+        openAIService.onResponseReceived = { [weak self] response in
+            self?.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
+            self?.button.title = "Hello World"
+        }
+        
+        openAIService.onResponseError = { [weak self] error in
+            self?.textLabel.stringValue = "❌ Ошибка ResponseAPI:\n\n\(error)"
             self?.button.title = "Hello World"
         }
     }
@@ -85,9 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Обработчик нажатия
         hotKey?.keyDownHandler = { [weak self] in
-            Task { @MainActor in
-                await self?.audioRecorder.startRecording()
-            }
+            self?.audioRecorder.startRecording()
         }
         
         // Обработчик отпускания

@@ -5,9 +5,16 @@ class OpenAIService: @unchecked Sendable {
     // OpenAI клиент
     private var openAI: OpenAI?
     
+    // Переменная для хранения предыдущего responseId
+    private var previousResponseId: String?
+    
     // Callback для результатов транскрипции
     var onTranscriptionReceived: ((String) -> Void)?
     var onTranscriptionError: ((String) -> Void)?
+    
+    // Callback для результатов ResponseAPI
+    var onResponseReceived: ((String) -> Void)?
+    var onResponseError: ((String) -> Void)?
     
     init() {
         setupOpenAI()
@@ -58,8 +65,7 @@ class OpenAIService: @unchecked Sendable {
                         print("✅ Транскрипция получена: \(transcription.text)")
                         DispatchQueue.main.async {
                             self.onTranscriptionReceived?(transcription.text)
-                        }
-                        
+                        }                        
                     case .failure(let error):
                         print("❌ Ошибка транскрипции: \(error)")
                         let errorMessage = error.localizedDescription
@@ -79,4 +85,74 @@ class OpenAIService: @unchecked Sendable {
         }
     }
     
+    // Метод для вызова ResponseAPI
+    func callResponseAPI(with transcription: String) {
+        guard let openAI = openAI else {
+            DispatchQueue.main.async {
+                self.onResponseError?("OpenAI клиент не инициализирован")
+            }
+            return
+        }
+        
+        print("🤖 Вызываем ResponseAPI с транскрипцией: \(transcription)")
+        
+        // Создаем запрос к ResponseAPI
+        let query = CreateModelResponseQuery(
+            input: .textInput(transcription),
+            model: .gpt5_mini,
+            instructions: "Ты полезный ассистент. Отвечай кратко и по делу на русском языке.",
+            previousResponseId: previousResponseId
+        )
+        
+        // Выполняем запрос в фоновом потоке
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            openAI.responses.createResponse(query: query) { result in
+                switch result {
+                case .success(let response):
+                    let responseText = self.getResponseText(from: response)
+                    print("✅ Ответ получен: \(responseText)")
+                    
+                    // Сохраняем responseId для следующего вызова
+                    self.previousResponseId = response.id
+                    print("💾 Сохранен responseId: \(response.id)")
+                    
+                    DispatchQueue.main.async {
+                        self.onResponseReceived?(responseText)
+                    }
+                    
+                case .failure(let error):
+                    print("❌ Ошибка ResponseAPI: \(error)")
+                    let errorMessage = error.localizedDescription
+                    DispatchQueue.main.async {
+                        self.onResponseError?("Ошибка ResponseAPI: \(errorMessage)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func getResponseText(from response: ResponseObject) -> String {
+        var allTexts: [String] = []
+        
+        for output in response.output {
+            switch output {
+            case .outputMessage(let outputMessage):
+                for content in outputMessage.content {
+                    switch content {
+                    case .OutputTextContent(let textContent):
+                        allTexts.append(textContent.text)
+                    case .RefusalContent(let refusalContent):
+                        print("Отказ: \(refusalContent.refusal)")
+                    }
+                }
+            default:
+                print("Необработанный тип вывода")
+            }
+        }
+        
+        // Объединяем все текстовые элементы в одну строку
+        return allTexts.isEmpty ? "Нет ответа" : allTexts.joined(separator: " ")
+    }
 }
