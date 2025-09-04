@@ -5,7 +5,6 @@ class AudioRecorder: NSObject, @unchecked Sendable {
     private var isInitialized = false
     private var isInitializing = false
     
-    var onRecordingCompleted: ((URL) -> Void)? // Callback с путем к файлу
     
     override init() {
         super.init()
@@ -79,15 +78,12 @@ class AudioRecorder: NSObject, @unchecked Sendable {
         }
     }
 
-     func stopRecording() {
+     func stopRecording() -> URL {
         audioRecorder?.stop()
-        DispatchQueue.main.async {
-            let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("temp_recording.m4a")
-            self.onRecordingCompleted?(tempURL)
-        }
-
+        let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("temp_recording.m4a")
         print("Запись остановлена")
+        return tempURL
     }
 }
 

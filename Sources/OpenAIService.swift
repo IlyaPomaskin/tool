@@ -8,13 +8,6 @@ class OpenAIService: @unchecked Sendable {
     // Переменная для хранения предыдущего responseId
     private var previousResponseId: String?
     
-    // Callback для результатов транскрипции
-    var onTranscriptionReceived: ((String) -> Void)?
-    var onTranscriptionError: ((String) -> Void)?
-    
-    // Callback для результатов ResponseAPI
-    var onResponseReceived: ((String) -> Void)?
-    var onResponseError: ((String) -> Void)?
     
     init() {
         setupOpenAI()
@@ -32,66 +25,36 @@ class OpenAIService: @unchecked Sendable {
         }
     }
     
-    func transcribeAudio(from fileURL: URL) {
+    func transcribeAudio(from fileURL: URL) async throws -> String {
         guard let openAI = openAI else {
-            DispatchQueue.main.async {
-                self.onTranscriptionError?("OpenAI клиент не инициализирован")
-            }
-            return
+            throw NSError(domain: "OpenAIService", code: 1, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
         }
         
         // Читаем файл с диска
-        do {
-            let audioData = try Data(contentsOf: fileURL)
-            print("Прочитан файл: \(fileURL.path) (\(audioData.count) байт)")
-            
-            print("Отправляем M4A аудио на транскрипцию...")
-            
-            // Отправляем в OpenAI для транскрипции
-            let query = AudioTranscriptionQuery(
-                file: audioData,
-                fileType: .m4a,
-                model: .whisper_1,
-                language: "ru" // Русский язык
-            )
-            
-            // Выполняем транскрипцию в фоновом потоке
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self = self else { return }
-                
-                openAI.audioTranscriptions(query: query) { result in
-                    switch result {
-                    case .success(let transcription):
-                        print("✅ Транскрипция получена: \(transcription.text)")
-                        DispatchQueue.main.async {
-                            self.onTranscriptionReceived?(transcription.text)
-                        }                        
-                    case .failure(let error):
-                        print("❌ Ошибка транскрипции: \(error)")
-                        let errorMessage = error.localizedDescription
-                        DispatchQueue.main.async {
-                            self.onTranscriptionError?("Ошибка: \(errorMessage)")
-                        }
-                    }
-                }
-            }
-            
-        } catch {
-            print("❌ Ошибка чтения файла: \(error)")
-            let errorMessage = error.localizedDescription
-            DispatchQueue.main.async {
-                self.onTranscriptionError?("Ошибка чтения файла: \(errorMessage)")
-            }
-        }
+        let audioData = try Data(contentsOf: fileURL)
+        print("Прочитан файл: \(fileURL.path) (\(audioData.count) байт)")
+        
+        print("Отправляем M4A аудио на транскрипцию...")
+        
+        // Отправляем в OpenAI для транскрипции
+        let query = AudioTranscriptionQuery(
+            file: audioData,
+            fileType: .m4a,
+            model: .whisper_1,
+            language: "ru" // Русский язык
+        )
+        
+        // Выполняем транскрипцию
+        let transcription = try await openAI.audioTranscriptions(query: query)
+        print("✅ Транскрипция получена: \(transcription.text)")
+        
+        return transcription.text
     }
     
     // Метод для вызова ResponseAPI
-    func callResponseAPI(with transcription: String) {
+    func callResponseAPI(with transcription: String) async throws -> String {
         guard let openAI = openAI else {
-            DispatchQueue.main.async {
-                self.onResponseError?("OpenAI клиент не инициализирован")
-            }
-            return
+            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
         }
         
         print("🤖 Вызываем ResponseAPI с транскрипцией: \(transcription)")
@@ -104,33 +67,16 @@ class OpenAIService: @unchecked Sendable {
             previousResponseId: previousResponseId
         )
         
-        // Выполняем запрос в фоновом потоке
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
-            openAI.responses.createResponse(query: query) { result in
-                switch result {
-                case .success(let response):
-                    let responseText = self.getResponseText(from: response)
-                    print("✅ Ответ получен: \(responseText)")
-                    
-                    // Сохраняем responseId для следующего вызова
-                    self.previousResponseId = response.id
-                    print("💾 Сохранен responseId: \(response.id)")
-                    
-                    DispatchQueue.main.async {
-                        self.onResponseReceived?(responseText)
-                    }
-                    
-                case .failure(let error):
-                    print("❌ Ошибка ResponseAPI: \(error)")
-                    let errorMessage = error.localizedDescription
-                    DispatchQueue.main.async {
-                        self.onResponseError?("Ошибка ResponseAPI: \(errorMessage)")
-                    }
-                }
-            }
-        }
+        // Выполняем запрос
+        let response = try await openAI.responses.createResponse(query: query)
+        let responseText = getResponseText(from: response)
+        print("✅ Ответ получен: \(responseText)")
+        
+        // Сохраняем responseId для следующего вызова
+        previousResponseId = response.id
+        print("💾 Сохранен responseId: \(response.id)")
+        
+        return responseText
     }
 
     private func getResponseText(from response: ResponseObject) -> String {

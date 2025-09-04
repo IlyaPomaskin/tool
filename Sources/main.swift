@@ -61,34 +61,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Инициализируем сервисы
         audioRecorder = AudioRecorder()
         openAIService = OpenAIService()
-        
-        // Настраиваем callback для передачи файла в OpenAI после записи
-        audioRecorder.onRecordingCompleted = { [weak self] fileURL in
-            self?.openAIService.transcribeAudio(from: fileURL)
-        }
-        
-        // Настраиваем callback'и OpenAI сервиса для обновления UI
-        openAIService.onTranscriptionReceived = { [weak self] transcription in
-            self?.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
-            self?.button.title = "Hello World"
-            self?.openAIService.callResponseAPI(with: transcription)
-        }
-        
-        openAIService.onTranscriptionError = { [weak self] error in
-            self?.textLabel.stringValue = "❌ Ошибка:\n\n\(error)"
-            self?.button.title = "Hello World"
-        }
-        
-        // Настраиваем callback'и ResponseAPI для обновления UI
-        openAIService.onResponseReceived = { [weak self] response in
-            self?.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
-            self?.button.title = "Hello World"
-        }
-        
-        openAIService.onResponseError = { [weak self] error in
-            self?.textLabel.stringValue = "❌ Ошибка ResponseAPI:\n\n\(error)"
-            self?.button.title = "Hello World"
-        }
     }
     
     func setupGlobalHotkeys() {
@@ -102,7 +74,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Обработчик отпускания
         hotKey?.keyUpHandler = { [weak self] in
-            self?.audioRecorder.stopRecording()
+            Task {
+                await self?.processRecording()
+            }
+        }
+    }
+    
+    func processRecording() async {
+        guard let audioRecorder = audioRecorder,
+              let openAIService = openAIService else { return }
+        
+        do {
+            // Останавливаем запись и получаем URL файла
+            let fileURL = audioRecorder.stopRecording()
+            
+            // Обновляем UI
+            await MainActor.run {
+                self.textLabel.stringValue = "🎤 Обработка аудио..."
+                self.button.title = "Обработка..."
+            }
+            
+            // Транскрибируем аудио
+            let transcription = try await openAIService.transcribeAudio(from: fileURL)
+            
+            // Обновляем UI с транскрипцией
+            await MainActor.run {
+                self.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
+                self.button.title = "Получение ответа..."
+            }
+            
+            // Получаем ответ от AI
+            let response = try await openAIService.callResponseAPI(with: transcription)
+            
+            // Обновляем UI с ответом
+            await MainActor.run {
+                self.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
+                self.button.title = "Hello World"
+            }
+            
+        } catch {
+            // Обрабатываем ошибки
+            await MainActor.run {
+                self.textLabel.stringValue = "❌ Ошибка:\n\n\(error.localizedDescription)"
+                self.button.title = "Hello World"
+            }
         }
     }
     
