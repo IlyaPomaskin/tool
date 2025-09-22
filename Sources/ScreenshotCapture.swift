@@ -4,7 +4,11 @@ import CoreGraphics
 
 @MainActor
 class ScreenshotCapture: NSObject {
+    var ocrService: OCRService
+    var onTextExtracted: ((String) -> Void)?
+    
     override init() {
+        self.ocrService = OCRService()
         super.init()
     }
     
@@ -32,8 +36,8 @@ class ScreenshotCapture: NSObject {
                 DispatchQueue.main.async {
                     NSApp.activate(ignoringOtherApps: true)
                     
-                    // Сохраняем из буфера обмена
-                    self.saveFromClipboard()
+                    // Сохраняем из буфера обмена и выполняем OCR
+                    self.saveFromClipboardAndExtractText()
                 }
             } catch {
                 print("Ошибка выполнения screencapture: \(error)")
@@ -44,31 +48,43 @@ class ScreenshotCapture: NSObject {
         }
     }
     
-    private func saveFromClipboard() {
+    private func saveFromClipboardAndExtractText() {
         guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
               let image = NSImage(data: pasteboard) else {
             print("Не удалось получить изображение из буфера обмена")
             return
         }
         
-        // Конвертируем в PNG
-        guard let tiffData = image.tiffRepresentation,
-              let bitmapRep = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            print("Не удалось конвертировать изображение в PNG")
-            return
+        // Выполняем OCR напрямую с изображением из буфера обмена
+        Task {
+            await extractTextFromScreenshot(image: image)
         }
-        
-        // Сохраняем файл
-        let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("screenshot.png")
-        
+    }
+    
+    private func extractTextFromScreenshot(image: NSImage) async {
         do {
-            try pngData.write(to: fileURL)
-            print("Скриншот сохранен: \(fileURL.path)")
+            let extractedText = try await ocrService.extractText(from: image)
+            print("Извлеченный текст: \(extractedText)")
+            
+            // Сохраняем текст в буфер обмена
+            saveTextToClipboard(extractedText)
+            
+            // Вызываем callback с извлеченным текстом
+            onTextExtracted?(extractedText)
+            
         } catch {
-            print("Ошибка сохранения скриншота: \(error)")
+            print("Ошибка OCR: \(error.localizedDescription)")
+            let errorMessage = "❌ Ошибка распознавания текста: \(error.localizedDescription)"
+            saveTextToClipboard(errorMessage)
+            onTextExtracted?(errorMessage)
         }
+    }
+    
+    private func saveTextToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        print("Текст сохранен в буфер обмена")
     }
     
 }

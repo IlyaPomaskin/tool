@@ -49,6 +49,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Настраиваем глобальные хоткеи
         setupGlobalHotkeys()
+        
+        // Настраиваем обработчик OCR
+        setupOCRHandler()
     }
     
     func setupAudioRecorder() {
@@ -116,6 +119,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Обрабатываем ошибки
             await MainActor.run {
                 self.textLabel.stringValue = "❌ Ошибка:\n\n\(error.localizedDescription)"
+            }
+        }
+    }
+    
+    func setupOCRHandler() {
+        screenshotCapture.onTextExtracted = { [weak self] extractedText in
+            Task { @MainActor in
+                self?.textLabel.stringValue = "📸 Извлеченный текст:\n\n\(extractedText)"
             }
         }
     }
