@@ -16,6 +16,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Menu bar
     var statusItem: NSStatusItem!
     var menuBarMenu: NSMenu!
+    var popoverService: PopoverService!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Создаем окно
@@ -67,6 +68,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioRecorder = AudioRecorder()
         openAIService = OpenAIService()
         screenshotCapture = ScreenshotCapture()
+        popoverService = PopoverService()
     }
     
     func setupGlobalHotkeys() {
@@ -154,7 +156,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func setupOCRHandler() {
         screenshotCapture.onTextExtracted = { [weak self] extractedText in
             Task { @MainActor in
+                // Обновляем UI в главном окне
                 self?.textLabel.stringValue = "📸 Извлеченный текст:\n\n\(extractedText)"
+                
+                // Показываем popover с результатами OCR
+                if let button = self?.statusItem.button {
+                    self?.popoverService.showOCRResult(extractedText, relativeTo: button)
+                }
             }
         }
     }
@@ -239,10 +247,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
     
+    
+    
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false // Не закрываем приложение, оставляем в menu bar
     }
 }
+
 
 // Создаем приложение
 let app = NSApplication.shared
