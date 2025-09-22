@@ -4,7 +4,6 @@ import Vision
 
 @MainActor
 class OCRService: NSObject {
-    
     func extractText(from image: NSImage) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
             guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
@@ -34,9 +33,9 @@ class OCRService: NSObject {
                 }
             }
             
-            // Настройки для лучшего распознавания текста
             request.recognitionLevel = .accurate
-            request.recognitionLanguages = ["en", "ru"] // Английский и русский
+            request.automaticallyDetectsLanguage = true
+            // request.recognitionLanguages = ["en", "ru"]
             request.usesLanguageCorrection = true
             
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
