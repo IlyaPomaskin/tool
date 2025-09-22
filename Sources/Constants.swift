@@ -13,6 +13,6 @@ Do not add or omit content.
 Respond with translated text only.
 """
         
-        static let assistant = "Ты полезный ассистент. Отвечай кратко и по делу на русском языке."
+        static let assistant = "You are a helpful assistant. Answer briefly and to the point in English."
     }
 }

@@ -1,6 +1,6 @@
 import AppKit
 
-// Сервис для создания и управления popover с очередью сообщений
+// Service for creating and managing popover with message queue
 @MainActor
 class PopoverService {
     private var popover: NSPopover?
@@ -24,17 +24,17 @@ class PopoverService {
         popover?.animates = true
     }
 
-    // Добавляет сообщение в очередь и запускает обработку очереди
+    // Adds message to queue and starts queue processing
     func addMessage(_ message: String) {
         messageQueue.append(message)
         
-        // Если очередь не обрабатывается, начинаем обработку
+        // If queue is not being processed, start processing
         if !isProcessingQueue {
             processMessageQueue()
         }
     }
     
-    // Обрабатывает очередь сообщений поочередно
+    // Processes message queue sequentially
     private func processMessageQueue() {
         guard !messageQueue.isEmpty else {
             isProcessingQueue = false
@@ -43,48 +43,48 @@ class PopoverService {
         
         isProcessingQueue = true
         
-        // Берем первое сообщение из очереди
+        // Take first message from queue
         let currentMessage = messageQueue.removeFirst()
         
-        // Показываем сообщение
+        // Show message
         showMessage(currentMessage)
         
-        // Устанавливаем таймер на 3 секунды для текущего сообщения
+        // Set timer for 3 seconds for current message
         currentMessageTimer?.invalidate()
         currentMessageTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                // Скрываем текущее сообщение
+                // Hide current message
                 self?.popover?.performClose(nil)
                 self?.isShowing = false
                 
-                // Обрабатываем следующее сообщение если есть
+                // Process next message if available
                 self?.processMessageQueue()
             }
         }
     }
     
-    // Показывает конкретное сообщение
+    // Shows specific message
     private func showMessage(_ text: String) {
         guard let popover = popover else { return }
         
-        // Создаем кастомный view controller с обработкой кликов
+        // Create custom view controller with click handling
         let viewController = PopoverViewController()
         viewController.onClick = { [weak self] in
-            // При клике закрываем текущее сообщение и переходим к следующему
+            // On click, close current message and move to next
             self?.currentMessageTimer?.invalidate()
             self?.popover?.performClose(nil)
             self?.isShowing = false
             
-            // Если есть еще сообщения, обрабатываем их
+            // If there are more messages, process them
             self?.processMessageQueue()
         }
         
-        // Создаем контейнер view с отступами
+        // Create container view with padding
         let containerView = NSView()
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = 12
         
-        // Адаптивные цвета для светлой/темной темы
+        // Adaptive colors for light/dark theme
         let isDarkMode = NSAppearance.currentDrawing().name == .darkAqua || NSAppearance.currentDrawing().name == .vibrantDark
         let backgroundColor = isDarkMode ? 
             NSColor.controlBackgroundColor.withAlphaComponent(0.9) : 
@@ -97,19 +97,19 @@ class PopoverService {
         containerView.layer?.borderWidth = 1
         containerView.layer?.borderColor = borderColor.cgColor
         
-        // Добавляем адаптивную тень
+        // Add adaptive shadow
         containerView.shadow = NSShadow()
-        // В темной теме тень должна быть более заметной
+        // In dark theme, shadow should be more visible
         let shadowAlpha: CGFloat = isDarkMode ? 0.4 : 0.2
         containerView.shadow?.shadowColor = NSColor.black.withAlphaComponent(shadowAlpha)
         containerView.shadow?.shadowOffset = NSSize(width: 0, height: -2)
         containerView.shadow?.shadowBlurRadius = 8
         
-        // Создаем text view с красивым шрифтом
+        // Create text view with beautiful font
         let textView = NSTextView()
         textView.string = text
         textView.isEditable = false
-        textView.isSelectable = false // Делаем текст невыделяемым
+        textView.isSelectable = false // Make text non-selectable
         textView.isVerticallyResizable = false
         textView.isHorizontallyResizable = false
         textView.font = NSFont.systemFont(ofSize: 13, weight: .medium)
@@ -117,37 +117,37 @@ class PopoverService {
         textView.textColor = NSColor.labelColor
         textView.alignment = .left
         
-        // Убираем отступы у text view
+        // Remove text view margins
         textView.textContainerInset = NSSize(width: 0, height: 0)
         textView.textContainer?.lineFragmentPadding = 0
         
-        // Вычисляем размер popover на основе текста
+        // Calculate popover size based on text
         let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         let textSize = text.size(withAttributes: [.font: font])
         let lines = text.components(separatedBy: .newlines).count
         let lineHeight: CGFloat = 18
         
-        // Размеры с отступами
+        // Sizes with padding
         let padding: CGFloat = 16
         
-        // Более точный расчет ширины - учитываем максимальную длину строки
+        // More accurate width calculation - consider maximum line length
         let maxLineWidth = text.components(separatedBy: .newlines)
             .map { $0.size(withAttributes: [.font: font]).width }
             .max() ?? textSize.width
         
-        // Более точный расчет высоты
+        // More accurate height calculation
         let estimatedHeight = max(CGFloat(lines) * lineHeight, 20)
         
-        // Адаптивные минимальные размеры в зависимости от длины текста
+        // Adaptive minimum sizes depending on text length
         let minWidth: CGFloat = text.count < 20 ? 100 : 120
         let minHeight: CGFloat = lines == 1 ? 50 : 60
         
         let popoverSize = NSSize(
             width: min(max(maxLineWidth + padding * 2, minWidth), 300),
-            height: min(max(estimatedHeight + padding * 2, minHeight), 200) // Увеличиваем максимальную высоту
+            height: min(max(estimatedHeight + padding * 2, minHeight), 200) // Increase maximum height
         )
         
-        // Определяем, нужно ли обрезать текст и получаем отображаемый текст
+        // Determine if text needs to be truncated and get display text
         let (displayText, isTextTruncated) = calculateTextFitting(
             text: text,
             popoverSize: popoverSize,
@@ -157,10 +157,10 @@ class PopoverService {
         
         textView.string = displayText
         
-        // Настраиваем контейнер
+        // Configure container
         containerView.frame = NSRect(origin: .zero, size: popoverSize)
         
-        // Настраиваем text view с отступами
+        // Configure text view with padding
         let textViewFrame = NSRect(
             x: padding,
             y: padding,
@@ -169,35 +169,35 @@ class PopoverService {
         )
         textView.frame = textViewFrame
         
-        // Добавляем text view в контейнер
+        // Add text view to container
         containerView.addSubview(textView)
         
-        // Добавляем градиентную тень внизу, если текст обрезан
+        // Add gradient fade at bottom if text is truncated
         if isTextTruncated {
             addGradientFadeToContainer(containerView, popoverSize: popoverSize)
         }
         
-        // Настраиваем view controller
+        // Configure view controller
         viewController.view = containerView
         
-        // Устанавливаем content view controller
+        // Set content view controller
         popover.contentViewController = viewController
         popover.contentSize = popoverSize
         
-        // Настраиваем popover для наследования системной темы
-        popover.appearance = nil // nil означает наследование системной темы
+        // Configure popover for system theme inheritance
+        popover.appearance = nil // nil means system theme inheritance
         
         guard let button = self.button else {
-            print("⚠️ Button не установлен в PopoverService")
+            print("⚠️ Button not set in PopoverService")
             return
         }
 
-        // Показываем popover рядом с иконкой menu bar
+        // Show popover next to menu bar icon
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         isShowing = true
     }
     
-    // Скрывает popover и очищает очередь
+    // Hides popover and clears queue
     private func hidePopover() {
         popover?.performClose(nil)
         messageQueue.removeAll()
@@ -217,22 +217,22 @@ class PopoverService {
         padding: CGFloat,
         lineHeight: CGFloat
     ) -> (displayText: String, isTruncated: Bool) {
-        // Подсчитываем количество строк в тексте
+        // Count number of lines in text
         let lines = text.components(separatedBy: .newlines).count
         
-        // Вычисляем доступное пространство для текста
+        // Calculate available space for text
         let availableTextHeight = popoverSize.height - padding * 2
         let maxLinesInPopover = Int(availableTextHeight / lineHeight)
         
-        // Определяем, нужно ли обрезать текст
+        // Determine if text needs to be truncated
         let isTextTruncated = lines > maxLinesInPopover
         
-        // Обрезаем текст если он не помещается
+        // Truncate text if it doesn't fit
         let displayText: String
         if isTextTruncated {
-            // Берем только те строки, которые помещаются
+            // Take only lines that fit
             let textLines = text.components(separatedBy: .newlines)
-            let visibleLines = Array(textLines.prefix(maxLinesInPopover - 1)) // -1 для "..."
+            let visibleLines = Array(textLines.prefix(maxLinesInPopover - 1)) // -1 for "..."
             displayText = visibleLines.joined(separator: "\n") + "\n..."
         } else {
             displayText = text
@@ -242,7 +242,7 @@ class PopoverService {
     }
     
     private func addGradientFadeToContainer(_ containerView: NSView, popoverSize: NSSize) {
-        // Создаем кастомный view с градиентом
+        // Create custom view with gradient
         let gradientView = GradientFadeView()
         gradientView.frame = NSRect(
             x: 0,
@@ -251,19 +251,19 @@ class PopoverService {
             height: 30
         )
         
-        // Добавляем градиент в контейнер поверх текста
+        // Add gradient to container over text
         containerView.addSubview(gradientView)
     }
 }
 
-// Кастомный view controller для обработки кликов в popover
+// Custom view controller for handling clicks in popover
 class PopoverViewController: NSViewController {
     var onClick: (() -> Void)?
     
     override func loadView() {
         super.loadView()
         
-        // Добавляем обработчик кликов
+        // Add click handler
         let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleClick))
         view.addGestureRecognizer(clickGesture)
     }
@@ -273,18 +273,18 @@ class PopoverViewController: NSViewController {
     }
 }
 
-// Кастомный view для отрисовки градиентной тени
+// Custom view for rendering gradient shadow
 class GradientFadeView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         
-        // Определяем цвета для градиента в зависимости от темы
+        // Determine gradient colors based on theme
         let isDarkMode = NSAppearance.currentDrawing().name == .darkAqua || NSAppearance.currentDrawing().name == .vibrantDark
         let backgroundColor = isDarkMode ? 
             NSColor.controlBackgroundColor.withAlphaComponent(0.9) : 
             NSColor.controlBackgroundColor.withAlphaComponent(0.95)
         
-        // Создаем градиент с NSGradient
+        // Create gradient with NSGradient
         let colors = [
             backgroundColor.withAlphaComponent(0.0),
             backgroundColor.withAlphaComponent(0.1),
@@ -302,7 +302,7 @@ class GradientFadeView: NSView {
             return
         }
         
-        // Рисуем градиент вертикально
+        // Draw gradient vertically
         let startPoint = NSPoint(x: bounds.midX, y: bounds.maxY)
         let endPoint = NSPoint(x: bounds.midX, y: bounds.minY)
         

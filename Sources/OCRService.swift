@@ -65,11 +65,11 @@ enum OCRError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidImage:
-            return "Не удалось загрузить изображение"
+            return "Failed to load image"
         case .noTextFound:
-            return "Текст на изображении не найден"
+            return "No text found in image"
         case .processingFailed:
-            return "Ошибка обработки изображения"
+            return "Image processing error"
         }
     }
 }

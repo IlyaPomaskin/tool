@@ -10,7 +10,7 @@ class ScreenshotCapture: NSObject {
         super.init()
     }
 
-    // Общий метод для выполнения захвата
+    // Common method for performing capture
     private func performScreenshotCapture(arguments: [String]) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -21,28 +21,28 @@ class ScreenshotCapture: NSObject {
     }
     
     private func getActiveWindowID() -> CGWindowID? {
-        // Получаем список всех окон
+        // Get list of all windows
         guard let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
         
         var candidateWindows: [(CGWindowID, String, Double, Double)] = []
         
-        // Собираем все подходящие окна
+        // Collect all suitable windows
         for windowInfo in windowList {
-            // Проверяем, что окно принадлежит другому приложению (не нашему)
+            // Check that window belongs to another application (not ours)
             if let ownerName = windowInfo[kCGWindowOwnerName as String] as? String,
-               ownerName != "mic-gpt" { // Исключаем наше приложение
+               ownerName != "mic-gpt" { // Exclude our application
                 
-                // Проверяем, что окно видимо и имеет размер
+                // Check that window is visible and has size
                 if let bounds = windowInfo[kCGWindowBounds as String] as? [String: Any],
                    let width = bounds["Width"] as? Double,
                    let height = bounds["Height"] as? Double,
-                   width > 100 && height > 100 { // Минимальный размер окна
+                   width > 100 && height > 100 { // Minimum window size
                     
-                    // Проверяем уровень окна (исключаем фоновые окна)
+                    // Check window level (exclude background windows)
                     if let layer = windowInfo[kCGWindowLayer as String] as? Int,
-                       layer == 0 { // 0 = обычное окно
+                       layer == 0 { // 0 = normal window
                         
                         if let windowID = windowInfo[kCGWindowNumber as String] as? CGWindowID {
                             candidateWindows.append((windowID, ownerName, width, height))
@@ -52,50 +52,50 @@ class ScreenshotCapture: NSObject {
             }
         }
         
-        // Сортируем окна по размеру (большие окна имеют приоритет)
+        // Sort windows by size (large windows have priority)
         candidateWindows.sort { $0.2 * $0.3 > $1.2 * $1.3 }
         
-        // Возвращаем самое большое окно (скорее всего это активное окно)
+        // Return largest window (most likely the active window)
         if let bestWindow = candidateWindows.first {
-            print("📱 Выбрано окно: \(bestWindow.1), ID: \(bestWindow.0), размер: \(Int(bestWindow.2))x\(Int(bestWindow.3))")
+            print("📱 Selected window: \(bestWindow.1), ID: \(bestWindow.0), size: \(Int(bestWindow.2))x\(Int(bestWindow.3))")
             return bestWindow.0
         }
         
-        print("❌ Не найдено подходящих окон")
+        print("❌ No suitable windows found")
         return nil
     }
     
     func screenshotRegion() async -> NSImage? {
         do {
-            // Используем общий метод для выполнения захвата
+            // Use common method for performing capture
             try await performScreenshotCapture(
                 arguments: ["-i", "-c", "-x"]
             )
             
-            // Получаем изображение из буфера обмена
+            // Get image from clipboard
             return getImageFromClipboard()
         } catch {
-            print("Ошибка захвата скриншота: \(error)")
+            print("Screenshot capture error: \(error)")
             return nil
         }
     }
     
     func screenshotFocusedWindow(compress: Bool = true) async -> NSImage? {
-        // Получаем ID активного окна сразу (без задержек)
+        // Get active window ID immediately (without delays)
         guard let windowID = self.getActiveWindowID() else {
-            print("❌ Не удалось получить ID активного окна")
+            print("❌ Failed to get active window ID")
             return nil
         }
         
-        print("🔍 Захватываем окно с ID: \(windowID)")
+        print("🔍 Capturing window with ID: \(windowID)")
         
         do {
-            // Используем общий метод для выполнения захвата
+            // Use common method for performing capture
             try await performScreenshotCapture(
                 arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"]
             )
             
-            // Получаем изображение из буфера обмена
+            // Get image from clipboard
             guard let rawImage = getImageFromClipboard() else {
                 return nil
             }
@@ -106,7 +106,7 @@ class ScreenshotCapture: NSObject {
 
             return image
         } catch {
-            print("Ошибка захвата окна: \(error)")
+            print("Window capture error: \(error)")
             return nil
         }
     }
@@ -114,44 +114,44 @@ class ScreenshotCapture: NSObject {
     private func getImageFromClipboard() -> NSImage? {
         guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
               let image = NSImage(data: pasteboard) else {
-            print("Не удалось получить изображение из буфера обмена")
+            print("Failed to get image from clipboard")
             return nil
         }
         
-        // Сохраняем скриншот для отладки
+        // Save screenshot for debugging
         saveDebugScreenshot(image: image, filename: "debug_screenshot.png")
         
         return image
     }
     
     private func saveDebugScreenshot(image: NSImage, filename: String) {
-        // Конвертируем в PNG
+        // Convert to PNG
         guard let tiffData = image.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiffData),
               let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            print("Не удалось конвертировать изображение в PNG для отладки")
+            print("Failed to convert image to PNG for debugging")
             return
         }
         
-        // Сохраняем файл
+        // Save file
         let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(filename)
         
         do {
             try pngData.write(to: fileURL)
-            print("🔍 Отладочный скриншот сохранен: \(fileURL.path)")
+            print("🔍 Debug screenshot saved: \(fileURL.path)")
         } catch {
-            print("Ошибка сохранения отладочного скриншота: \(error)")
+            print("Error saving debug screenshot: \(error)")
         }
     }
     
     func compressImage(_ image: NSImage) -> NSImage {
-        // Получаем размер изображения
+        // Get image size
         let originalSize = image.size
-        print("📏 Оригинальный размер изображения: \(Int(originalSize.width))x\(Int(originalSize.height))")
+        print("📏 Original image size: \(Int(originalSize.width))x\(Int(originalSize.height))")
         
-        // Определяем максимальный размер (OpenAI рекомендует до 2048x2048)
-        let maxDimension: CGFloat = 1024 // Уменьшаем для лучшего сжатия
+        // Determine maximum size (OpenAI recommends up to 2048x2048)
+        let maxDimension: CGFloat = 1024 // Reduce for better compression
         let scale: CGFloat
         
         if originalSize.width > originalSize.height {
@@ -161,13 +161,13 @@ class ScreenshotCapture: NSObject {
         }
         
         let newSize = NSSize(width: originalSize.width * scale, height: originalSize.height * scale)
-        print("📏 Новый размер изображения: \(Int(newSize.width))x\(Int(newSize.height))")
+        print("📏 New image size: \(Int(newSize.width))x\(Int(newSize.height))")
         
-        // Создаем новое изображение с уменьшенным размером используя нативные методы
+        // Create new image with reduced size using native methods
         let resizedImage = NSImage(size: newSize)
         resizedImage.lockFocus()
         
-        // Используем высокое качество интерполяции
+        // Use high quality interpolation
         NSGraphicsContext.current?.imageInterpolation = .high
         image.draw(in: NSRect(origin: .zero, size: newSize))
         

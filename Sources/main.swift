@@ -24,10 +24,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func setupGlobalHotkeys() {
         recordingHotKey.keyDownHandler = { [weak self] in
-            // Начинаем запись звука сразу же
+            // Start audio recording immediately
             self?.audioRecorder.startRecording()
             
-            // Захватываем активное окно параллельно
+            // Capture active window in parallel
             Task {
                 self?.capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
             }
@@ -54,9 +54,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let fileURL = audioRecorder.stopRecording()
 
-            self.popoverService.addMessage("🎤 Обработка аудио...")
+            self.popoverService.addMessage("🎤 Processing audio...")
             let transcription = try await openAIService.transcribeAudio(from: fileURL)
-            self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)")
+            self.popoverService.addMessage("🎤 Transcription:\n\n\(transcription)")
             
             let response: String
             if let windowImage = capturedWindowImage {
@@ -64,79 +64,79 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 response = try await openAIService.callResponseAPI(with: transcription)
             }
-            self.popoverService.addMessage("🤖 Ответ:\n\n\(response)")
+            self.popoverService.addMessage("🤖 Response:\n\n\(response)")
 
             self.capturedWindowImage = nil
             
         } catch {
-            self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)")
+            self.popoverService.addMessage("❌ Error:\n\n\(error.localizedDescription)")
         }
     }
     
     
     func setupMenuBar() {
-        // Создаем status item в menu bar
+        // Create status item in menu bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         
-        // Создаем иконку из системного символа
+        // Create icon from system symbol
         if let button = statusItem.button {
-            // Используем системную иконку микрофона
+            // Use system microphone icon
             button.image = NSImage(systemSymbolName: "tuningfork", accessibilityDescription: "Mic GPT")
             button.image?.size = NSSize(width: 18, height: 18)
             button.target = self
             
-            // Устанавливаем button в PopoverService
+            // Set button in PopoverService
             popoverService.setButton(button)
         }
         
-        // Создаем меню
+        // Create menu
         menuBarMenu = NSMenu()
         
-        // Заголовок
+        // Title
         let titleItem = NSMenuItem(title: "Mic GPT", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menuBarMenu.addItem(titleItem)
         
         menuBarMenu.addItem(NSMenuItem.separator())
         
-        // Запись голоса
+        // Voice recording
         let recordItem = NSMenuItem(title: "🎤 GPT: Control + Option + Command + M", action: nil, keyEquivalent: "")
         recordItem.target = self
         menuBarMenu.addItem(recordItem)
         
-        // Скриншот
+        // Screenshot
         let screenshotItem = NSMenuItem(title: "📸 OCR: Control + Option + Command + B", action: nil, keyEquivalent: "")
         screenshotItem.target = self
         menuBarMenu.addItem(screenshotItem)
         
         menuBarMenu.addItem(NSMenuItem.separator())
         
-        // Выход
-        let quitItem = NSMenuItem(title: "Выход", action: #selector(quitApp), keyEquivalent: "q")
+        // Exit
+        let quitItem = NSMenuItem(title: "Exit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menuBarMenu.addItem(quitItem)
         
-        // Устанавливаем меню
+        // Set menu
         statusItem.menu = menuBarMenu
     }
 
     private func screenshotOcr(_ image: NSImage) async {
         do {
             let extractedText = try await ocrService.extractText(from: image)
-            print("Извлеченный текст: \(extractedText)")
+            print("Extracted text: \(extractedText)")
             
-            // Сохраняем текст в буфер обмена
+            // Save text to clipboard
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(extractedText, forType: .string)
             
             await MainActor.run {
-                // Показываем popover с результатами OCR
-                self.popoverService.addMessage("📸 Извлеченный текст:\n\n\(extractedText)")
+                // Show popover with OCR results
+                self.popoverService.addMessage("📸 Extracted text:\n\n\(extractedText)")
             }
         } catch {
-            print("Ошибка OCR: \(error.localizedDescription)")
-            let errorMessage = "❌ Ошибка распознавания текста: \(error.localizedDescription)"
+            print("OCR error: \(error.localizedDescription)")
+            let errorMessage = "❌ Text recognition error: \(error.localizedDescription)"
             
             await MainActor.run {
                 self.popoverService.addMessage(errorMessage)
@@ -149,12 +149,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return false // Не закрываем приложение, оставляем в menu bar
+        return false // Don't close the app, keep it in menu bar
     }
 }
 
 
-// Создаем приложение
+// Create application
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

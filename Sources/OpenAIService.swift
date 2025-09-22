@@ -3,10 +3,10 @@ import AppKit
 import OpenAI
 
 class OpenAIService: @unchecked Sendable {
-    // OpenAI клиент
+    // OpenAI client
     private var openAI: OpenAI?
     
-    // Переменная для хранения предыдущего responseId
+    // Variable to store previous responseId
     private var previousResponseId: String?
     
     
@@ -15,28 +15,28 @@ class OpenAIService: @unchecked Sendable {
     }
     
     private func setupOpenAI() {
-        // Получаем API ключ из переменной окружения или используем placeholder
+        // Get API key from environment variable or use placeholder
         let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? "your-api-key-here"
         
         if apiKey != "your-api-key-here" {
             openAI = OpenAI(apiToken: apiKey)
-            print("OpenAI клиент инициализирован")
+            print("OpenAI client initialized")
         } else {
-            print("⚠️  Установите OPENAI_API_KEY в переменных окружения")
+            print("⚠️  Set OPENAI_API_KEY in environment variables")
         }
     }
     
     func transcribeAudio(from fileURL: URL) async throws -> String {
         guard let openAI = openAI else {
-            throw NSError(domain: "OpenAIService", code: 1, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
+            throw NSError(domain: "OpenAIService", code: 1, userInfo: [NSLocalizedDescriptionKey: "OpenAI client not initialized"])
         }
         
-        // Читаем файл с диска
+        // Read file from disk
         let audioData = try Data(contentsOf: fileURL)
         
-        print("Отправляем M4A аудио на транскрипцию...")
+        print("Sending M4A audio for transcription...")
         
-        // Отправляем в OpenAI для транскрипции
+        // Send to OpenAI for transcription
         let query = AudioTranscriptionQuery(
             file: audioData,
             fileType: .m4a,
@@ -44,14 +44,14 @@ class OpenAIService: @unchecked Sendable {
             language: "ru"
         )
         
-        // Выполняем транскрипцию
+        // Perform transcription
         let transcription = try await openAI.audioTranscriptions(query: query)
-        print("✅ Транскрипция получена: \(transcription.text)")
+        print("✅ Transcription received: \(transcription.text)")
         
         return transcription.text
     }
     
-    // Метод для вызова ResponseAPI
+    // Method for calling ResponseAPI
     func callResponseAPI(with transcription: String) async throws -> String {
         let query = CreateModelResponseQuery(
             input: .textInput(transcription),
@@ -60,10 +60,10 @@ class OpenAIService: @unchecked Sendable {
             previousResponseId: previousResponseId
         )
         
-        return try await executeResponseQuery(query, description: "с транскрипцией: \(transcription)")
+        return try await executeResponseQuery(query, description: "with transcription: \(transcription)")
     }
     
-    // Метод для вызова ResponseAPI с изображением
+    // Method for calling ResponseAPI with image
     func callResponseAPI(with transcription: String, instructions: String, image: NSImage) async throws -> String {
         let inputMessage = try createInputMessageWithImage(transcription: transcription, image: image)
         
@@ -74,43 +74,43 @@ class OpenAIService: @unchecked Sendable {
             previousResponseId: previousResponseId
         )
         
-        return try await executeResponseQuery(query, description: "с транскрипцией и изображением: \(transcription)")
+        return try await executeResponseQuery(query, description: "with transcription and image: \(transcription)")
     }
 
-    // Общий метод для выполнения запроса к ResponseAPI
+    // Common method for executing ResponseAPI request
     private func executeResponseQuery(_ query: CreateModelResponseQuery, description: String) async throws -> String {
         guard let openAI = openAI else {
-            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
+            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI client not initialized"])
         }
         
-        print("🤖 Вызываем ResponseAPI \(description)")
+        print("🤖 Calling ResponseAPI \(description)")
         
-        // Выполняем запрос
+        // Execute request
         let response = try await openAI.responses.createResponse(query: query)
         let responseText = getResponseText(from: response)
-        print("✅ Ответ получен: \(responseText)")
+        print("✅ Response received: \(responseText)")
         
-        // Сохраняем responseId для следующего вызова
+        // Save responseId for next call
         previousResponseId = response.id
-        print("💾 Сохранен responseId: \(response.id)")
+        print("💾 Saved responseId: \(response.id)")
         
         return responseText
     }
     
-    // Создание сообщения с изображением
+    // Creating message with image
     private func createInputMessageWithImage(transcription: String, image: NSImage) throws -> EasyInputMessage {
-        // Конвертируем NSImage в Data (уже сжатое изображение)
+        // Convert NSImage to Data (already compressed image)
         guard let tiffData = image.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiffData),
               let imageData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: 0.85]) else {
-            throw NSError(domain: "OpenAIService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Не удалось конвертировать изображение"])
+            throw NSError(domain: "OpenAIService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image"])
         }
         
-        // Кодируем изображение в base64
+        // Encode image to base64
         let base64Image = imageData.base64EncodedString()
         let dataURL = "data:image/jpeg;base64,\(base64Image)"
         
-        // Создаем сообщение с текстом и изображением
+        // Create message with text and image
         return EasyInputMessage(
             role: .user,
             content: .inputItemContentList([
@@ -136,15 +136,15 @@ class OpenAIService: @unchecked Sendable {
                     case .OutputTextContent(let textContent):
                         allTexts.append(textContent.text)
                     case .RefusalContent(let refusalContent):
-                        print("Отказ: \(refusalContent.refusal)")
+                        print("Refusal: \(refusalContent.refusal)")
                     }
                 }
             default:
-                print("Необработанный тип вывода")
+                print("Unhandled output type")
             }
         }
         
-        // Объединяем все текстовые элементы в одну строку
-        return allTexts.isEmpty ? "Нет ответа" : allTexts.joined(separator: " ")
+        // Combine all text elements into one string
+        return allTexts.isEmpty ? "No response" : allTexts.joined(separator: " ")
     }
 }

@@ -16,22 +16,22 @@ class AudioRecorder: NSObject, @unchecked Sendable {
         }
         
         if isInitializing {
-            // Ждем завершения инициализации
+            // Wait for initialization to complete
             while isInitializing {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 секунды
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             }
             return isInitialized
         }
         
         isInitializing = true
         
-        // Запрашиваем разрешение на доступ к микрофону
+        // Request microphone access permission
         let granted = await requestMicrophoneAccess()
         
         if granted {
             isInitialized = true
         } else {
-            print("Доступ к микрофону не разрешен")
+            print("Microphone access not granted")
         }
         
         isInitializing = false
@@ -77,9 +77,9 @@ class AudioRecorder: NSObject, @unchecked Sendable {
             audioRecorder?.prepareToRecord()
             audioRecorder?.record()
 
-            print("Запись началась: \(tempURL)")}
+            print("Recording started: \(tempURL)")}
         catch {
-            print("Ошибка записи: \(error)")
+            print("Recording error: \(error)")
         }
     }
 
@@ -87,7 +87,7 @@ class AudioRecorder: NSObject, @unchecked Sendable {
         audioRecorder?.stop()
         let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("temp_recording.m4a")
-        print("Запись остановлена")
+        print("Recording stopped")
         return tempURL
     }
 }
