@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var audioRecorder: AudioRecorder!
     var openAIService: OpenAIService!
     var screenshotCapture: ScreenshotCapture!
+    var capturedWindowImage: NSImage?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Создаем окно
@@ -67,7 +68,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Обработчик нажатия для записи
         hotKey?.keyDownHandler = { [weak self] in
+            // Начинаем запись звука сразу же
             self?.audioRecorder.startRecording()
+            
+            // Захватываем активное окно параллельно
+            Task {
+                if let screenshotCapture = self?.screenshotCapture {
+                    self?.capturedWindowImage = await screenshotCapture.captureFocusedWindow()
+                }
+            }
         }
         
         // Обработчик отпускания для записи
@@ -107,12 +116,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
             }
             
-            // Получаем ответ от AI
-            let response = try await openAIService.callResponseAPI(with: transcription)
+            // Получаем ответ от AI (с изображением если есть)
+            let response: String
+            if let windowImage = capturedWindowImage {
+                // Сжимаем изображение перед отправкой
+                if let compressedImage = screenshotCapture.compressImageForOpenAI(windowImage) {
+                    response = try await openAIService.callResponseAPI(with: transcription, image: compressedImage)
+                } else {
+                    response = try await openAIService.callResponseAPI(with: transcription)
+                }
+            } else {
+                response = try await openAIService.callResponseAPI(with: transcription)
+            }
             
             // Обновляем UI с ответом
             await MainActor.run {
                 self.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
+                // Очищаем захваченное изображение
+                self.capturedWindowImage = nil
             }
             
         } catch {

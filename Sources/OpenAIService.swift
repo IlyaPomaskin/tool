@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import OpenAI
 
 class OpenAIService: @unchecked Sendable {
@@ -62,8 +63,61 @@ class OpenAIService: @unchecked Sendable {
         // Создаем запрос к ResponseAPI
         let query = CreateModelResponseQuery(
             input: .textInput(transcription),
-            model: .gpt5_mini,
+            model: .gpt5_chat,
             instructions: "Ты полезный ассистент. Отвечай кратко и по делу на русском языке.",
+            previousResponseId: previousResponseId
+        )
+        
+        // Выполняем запрос
+        let response = try await openAI.responses.createResponse(query: query)
+        let responseText = getResponseText(from: response)
+        print("✅ Ответ получен: \(responseText)")
+        
+        // Сохраняем responseId для следующего вызова
+        previousResponseId = response.id
+        print("💾 Сохранен responseId: \(response.id)")
+        
+        return responseText
+    }
+    
+    // Метод для вызова ResponseAPI с изображением
+    func callResponseAPI(with transcription: String, image: NSImage) async throws -> String {
+        guard let openAI = openAI else {
+            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
+        }
+        
+        print("🤖 Вызываем ResponseAPI с транскрипцией и изображением: \(transcription)")
+        
+        // Конвертируем NSImage в Data (уже сжатое изображение)
+        guard let tiffData = image.tiffRepresentation,
+              let bitmapRep = NSBitmapImageRep(data: tiffData),
+              let imageData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: 0.85]) else {
+            throw NSError(domain: "OpenAIService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Не удалось конвертировать изображение"])
+        }
+        
+        // Кодируем изображение в base64
+        let base64Image = imageData.base64EncodedString()
+        let dataURL = "data:image/jpeg;base64,\(base64Image)"
+        
+        // Создаем сообщение с текстом и изображением
+        let inputMessage = EasyInputMessage(
+            role: .user,
+            content: .inputItemContentList([
+                .inputText(Components.Schemas.InputTextContent(_type: .inputText, text: transcription)),
+                .inputImage(InputImage(
+                    _type: .inputImage,
+                    imageUrl: dataURL,
+                    fileId: nil,
+                    detail: .auto
+                ))
+            ])
+        )
+        
+        // Создаем запрос к ResponseAPI с изображением
+        let query = CreateModelResponseQuery(
+            input: .inputItemList([InputItem.inputMessage(inputMessage)]),
+            model: .gpt5_chat,
+            instructions: "Ты полезный ассистент. Отвечай кратко и по делу на русском языке. У тебя есть доступ к изображению, которое было захвачено с экрана во время записи голоса.",
             previousResponseId: previousResponseId
         )
         
