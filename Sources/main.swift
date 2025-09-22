@@ -4,7 +4,7 @@ import OpenAI
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var hotKey: HotKey?
+    var recordingHotKey: HotKey?
     var screenshotHotKey: HotKey?
     var audioRecorder: AudioRecorder!
     var openAIService: OpenAIService!
@@ -18,31 +18,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popoverService: PopoverService!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Инициализируем аудио рекордер
-        setupAudioRecorder()
-        
-        // Настраиваем глобальные хоткеи
-        setupGlobalHotkeys()
-        
-        // Настраиваем menu bar
-        setupMenuBar()
-    }
-    
-    func setupAudioRecorder() {
-        // Инициализируем сервисы
         audioRecorder = AudioRecorder()
         openAIService = OpenAIService()
         screenshotCapture = ScreenshotCapture()
         ocrService = OCRService()
         popoverService = PopoverService()
+        
+        setupGlobalHotkeys()
+        
+        setupMenuBar()
     }
     
     func setupGlobalHotkeys() {
         // Создаем хоткей Control + Option + Command + M для записи
-        hotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
+        recordingHotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
         
         // Обработчик нажатия для записи
-        hotKey?.keyDownHandler = { [weak self] in
+        recordingHotKey?.keyDownHandler = { [weak self] in
             // Начинаем запись звука сразу же
             self?.audioRecorder.startRecording()
             
@@ -55,7 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Обработчик отпускания для записи
-        hotKey?.keyUpHandler = { [weak self] in
+        recordingHotKey?.keyUpHandler = { [weak self] in
             Task {
                 await self?.processRecording()
             }
