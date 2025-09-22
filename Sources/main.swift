@@ -29,7 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // Захватываем активное окно параллельно
             Task {
-                self?.capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow()
+                self?.capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
             }
         }
         
@@ -57,43 +57,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let fileURL = audioRecorder.stopRecording()
             
             // Показываем сообщение об обработке
-            await MainActor.run {
-                self.popoverService.addMessage("🎤 Обработка аудио...", relativeTo: button)
-            }
+            self.popoverService.addMessage("🎤 Обработка аудио...", relativeTo: button)
             
             // Транскрибируем аудио
             let transcription = try await openAIService.transcribeAudio(from: fileURL)
             
             // Показываем транскрипцию
-            await MainActor.run {
-                self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)", relativeTo: button)
-            }
+            self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)", relativeTo: button)
             
             // Получаем ответ от AI (с изображением если есть)
             let response: String
+
             if let windowImage = capturedWindowImage {
-                // Сжимаем изображение перед отправкой
-                if let compressedImage = screenshotCapture.compressImage(windowImage) {
-                    response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: compressedImage)
-                } else {
-                    response = try await openAIService.callResponseAPI(with: transcription)
-                }
+                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: windowImage)
             } else {
                 response = try await openAIService.callResponseAPI(with: transcription)
             }
-            
-            // Показываем ответ
-            await MainActor.run {
-                self.popoverService.addMessage("🤖 Ответ:\n\n\(response)", relativeTo: button)
-                // Очищаем захваченное изображение
-                self.capturedWindowImage = nil
-            }
+
+            self.popoverService.addMessage("🤖 Ответ:\n\n\(response)", relativeTo: button)
+            self.capturedWindowImage = nil
             
         } catch {
-            // Обрабатываем ошибки
-            await MainActor.run {
-                self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)", relativeTo: button)
-            }
+            self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)", relativeTo: button)
         }
     }
     
@@ -140,7 +125,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Устанавливаем меню
         statusItem.menu = menuBarMenu
     }
-ƒ
+
     private func processScreenshotImage(_ image: NSImage) async {
         do {
             let extractedText = try await ocrService.extractText(from: image)

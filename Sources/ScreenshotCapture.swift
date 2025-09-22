@@ -9,39 +9,6 @@ class ScreenshotCapture: NSObject {
     override init() {
         super.init()
     }
-    
-    
-    func screenshotFocusedWindow() async -> NSImage? {
-        // Получаем ID активного окна сразу (без задержек)
-        guard let windowID = self.getActiveWindowID() else {
-            print("❌ Не удалось получить ID активного окна")
-            return nil
-        }
-        
-        print("🔍 Захватываем окно с ID: \(windowID)")
-        
-        do {
-            // Используем общий метод для выполнения захвата
-            try await performScreenshotCapture(
-                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"]
-            )
-            
-            // Получаем изображение из буфера обмена
-            if let pasteboard = NSPasteboard.general.data(forType: .tiff),
-               let image = NSImage(data: pasteboard) {
-                
-                // Сохраняем скриншот для отладки
-                saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
-                
-                return image
-            } else {
-                return nil
-            }
-        } catch {
-            print("Ошибка захвата окна: \(error)")
-            return nil
-        }
-    }
 
     // Общий метод для выполнения захвата
     private func performScreenshotCapture(arguments: [String]) async throws {
@@ -113,6 +80,37 @@ class ScreenshotCapture: NSObject {
         }
     }
     
+    func screenshotFocusedWindow(compress: Bool = true) async -> NSImage? {
+        // Получаем ID активного окна сразу (без задержек)
+        guard let windowID = self.getActiveWindowID() else {
+            print("❌ Не удалось получить ID активного окна")
+            return nil
+        }
+        
+        print("🔍 Захватываем окно с ID: \(windowID)")
+        
+        do {
+            // Используем общий метод для выполнения захвата
+            try await performScreenshotCapture(
+                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"]
+            )
+            
+            // Получаем изображение из буфера обмена
+            guard let rawImage = getImageFromClipboard() else {
+                return nil
+            }
+
+            let image = compress ? self.compressImage(rawImage) : rawImage
+
+            saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
+
+            return image
+        } catch {
+            print("Ошибка захвата окна: \(error)")
+            return nil
+        }
+    }
+
     private func getImageFromClipboard() -> NSImage? {
         guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
               let image = NSImage(data: pasteboard) else {
@@ -147,7 +145,7 @@ class ScreenshotCapture: NSObject {
         }
     }
     
-    func compressImage(_ image: NSImage) -> NSImage? {
+    func compressImage(_ image: NSImage) -> NSImage {
         // Получаем размер изображения
         let originalSize = image.size
         print("📏 Оригинальный размер изображения: \(Int(originalSize.width))x\(Int(originalSize.height))")
