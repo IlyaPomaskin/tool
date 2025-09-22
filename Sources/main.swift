@@ -7,8 +7,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var textLabel: NSTextField!
     var hotKey: HotKey?
+    var screenshotHotKey: HotKey?
     var audioRecorder: AudioRecorder!
     var openAIService: OpenAIService!
+    var screenshotCapture: ScreenshotCapture!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Создаем окно
@@ -24,7 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Создаем текстовое поле для отображения транскрипции
         textLabel = NSTextField(frame: NSRect(x: 50, y: 50, width: 400, height: 200))
-        textLabel.stringValue = "Нажмите и удерживайте Control + Option + Command + M для записи голоса\n\nТранскрипция появится здесь..."
+        textLabel.stringValue = "Нажмите и удерживайте Control + Option + Command + M для записи голоса\n\nНажмите Control + Option + Command + B для создания скриншота\n\nТранскрипция появится здесь..."
         textLabel.isEditable = false
         textLabel.isSelectable = true
         textLabel.font = NSFont.systemFont(ofSize: 14)
@@ -53,22 +55,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Инициализируем сервисы
         audioRecorder = AudioRecorder()
         openAIService = OpenAIService()
+        screenshotCapture = ScreenshotCapture()
     }
     
     func setupGlobalHotkeys() {
-        // Создаем хоткей Control + Option + Command + M
+        // Создаем хоткей Control + Option + Command + M для записи
         hotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
         
-        // Обработчик нажатия
+        // Обработчик нажатия для записи
         hotKey?.keyDownHandler = { [weak self] in
             self?.audioRecorder.startRecording()
         }
         
-        // Обработчик отпускания
+        // Обработчик отпускания для записи
         hotKey?.keyUpHandler = { [weak self] in
             Task {
                 await self?.processRecording()
             }
+        }
+        
+        // Создаем хоткей Control + Option + Command + B для скриншотов
+        screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
+        
+        // Обработчик для скриншотов
+        screenshotHotKey?.keyDownHandler = { [weak self] in
+            self?.screenshotCapture.startScreenshot()
         }
     }
     
