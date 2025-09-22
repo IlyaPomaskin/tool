@@ -9,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var audioRecorder: AudioRecorder!
     var openAIService: OpenAIService!
     var screenshotCapture: ScreenshotCapture!
+    var ocrService: OCRService!
     var capturedWindowImage: NSImage?
     
     // Menu bar
@@ -23,9 +24,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Настраиваем глобальные хоткеи
         setupGlobalHotkeys()
         
-        // Настраиваем обработчик OCR
-        setupOCRHandler()
-        
         // Настраиваем menu bar
         setupMenuBar()
     }
@@ -35,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioRecorder = AudioRecorder()
         openAIService = OpenAIService()
         screenshotCapture = ScreenshotCapture()
+        ocrService = OCRService()
         popoverService = PopoverService()
     }
     
@@ -67,7 +66,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Обработчик для скриншотов
         screenshotHotKey?.keyDownHandler = { [weak self] in
-            self?.screenshotCapture.startScreenshot()
+            Task {
+                if let image = await self?.screenshotCapture.startScreenshot() {
+                    await self?.processScreenshotImage(image)
+                }
+            }
         }
     }
     
@@ -98,7 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let response: String
             if let windowImage = capturedWindowImage {
                 // Сжимаем изображение перед отправкой
-                if let compressedImage = screenshotCapture.compressImageForOpenAI(windowImage) {
+                if let compressedImage = screenshotCapture.compressImage(windowImage) {
                     response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: compressedImage)
                 } else {
                     response = try await openAIService.callResponseAPI(with: transcription)
@@ -122,16 +125,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func setupOCRHandler() {
-        screenshotCapture.onTextExtracted = { [weak self] extractedText in
-            Task { @MainActor in
-                // Показываем popover с результатами OCR
-                if let button = self?.statusItem.button {
-                    self?.popoverService.showOCRResult(extractedText, relativeTo: button)
-                }
-            }
-        }
-    }
     
     func setupMenuBar() {
         // Создаем status item в menu bar
@@ -195,7 +188,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func takeScreenshot() {
-        screenshotCapture.startScreenshot()
+        Task {
+            if let image = await screenshotCapture.startScreenshot() {
+                await processScreenshotImage(image)
+            }
+        }
+    }
+    
+    private func processScreenshotImage(_ image: NSImage) async {
+        guard let ocrService = ocrService else { return }
+        
+        do {
+            let extractedText = try await ocrService.extractText(from: image)
+            print("Извлеченный текст: \(extractedText)")
+            
+            // Сохраняем текст в буфер обмена
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(extractedText, forType: .string)
+            
+            await MainActor.run {
+                // Показываем popover с результатами OCR
+                if let button = self.statusItem.button {
+                    self.popoverService.showOCRResult(extractedText, relativeTo: button)
+                }
+            }
+        } catch {
+            print("Ошибка OCR: \(error.localizedDescription)")
+            let errorMessage = "❌ Ошибка распознавания текста: \(error.localizedDescription)"
+            
+            await MainActor.run {
+                if let button = self.statusItem.button {
+                    self.popoverService.showOCRResult(errorMessage, relativeTo: button)
+                }
+            }
+        }
     }
     
     @objc func quitApp() {

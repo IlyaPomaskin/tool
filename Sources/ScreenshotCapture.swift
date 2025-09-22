@@ -5,66 +5,82 @@ import CoreFoundation
 
 @MainActor
 class ScreenshotCapture: NSObject {
-    var ocrService: OCRService
-    var onTextExtracted: ((String) -> Void)?
     
     override init() {
-        self.ocrService = OCRService()
         super.init()
     }
     
-    func startScreenshot() {
-        // Используем системную команду для скриншота
-        captureScreenshotWithSystemCommand()
-    }
     
     func captureFocusedWindow() async -> NSImage? {
-        return await withCheckedContinuation { continuation in
-            // Получаем ID активного окна сразу (без задержек)
-            if let windowID = self.getActiveWindowID() {
-                print("🔍 Захватываем окно с ID: \(windowID)")
+        // Получаем ID активного окна сразу (без задержек)
+        guard let windowID = self.getActiveWindowID() else {
+            print("❌ Не удалось получить ID активного окна")
+            return nil
+        }
+        
+        print("🔍 Захватываем окно с ID: \(windowID)")
+        
+        do {
+            // Используем общий метод для выполнения захвата
+            try await performScreenshotCapture(
+                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"],
+                delay: 0.1
+            )
+            
+            // Получаем изображение из буфера обмена
+            if let pasteboard = NSPasteboard.general.data(forType: .tiff),
+               let image = NSImage(data: pasteboard) {
                 
-                // Скрываем приложение только на время захвата
-                NSApp.hide(nil)
+                // Сохраняем скриншот для отладки
+                saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
                 
-                // Минимальная задержка для скрытия приложения
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    // Используем системную команду screencapture с конкретным window ID и сжатием
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                    process.arguments = ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"] // -t jpg для сжатия
+                return image
+            } else {
+                return nil
+            }
+        } catch {
+            print("Ошибка захвата окна: \(error)")
+            return nil
+        }
+    }
+    
+    // Общий метод для вызова утилиты screencapture
+    private func executeScreencaptureCommand(arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = arguments
+        
+        try process.run()
+        process.waitUntilExit()
+    }
+    
+    // Общий метод для выполнения захвата с общим кодом
+    private func performScreenshotCapture(
+        arguments: [String],
+        delay: TimeInterval
+    ) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            // Скрываем приложение
+            NSApp.hide(nil)
+            
+            // Задержка для скрытия приложения
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                do {
+                    // Выполняем команду screencapture
+                    try self.executeScreencaptureCommand(arguments: arguments)
                     
-                    do {
-                        try process.run()
-                        process.waitUntilExit()
-                        
-                        // Показываем приложение обратно
-                        DispatchQueue.main.async {
-                            NSApp.activate(ignoringOtherApps: true)
-                            
-                            // Получаем изображение из буфера обмена
-                            if let pasteboard = NSPasteboard.general.data(forType: .tiff),
-                               let image = NSImage(data: pasteboard) {
-                                
-                                // Сохраняем скриншот для отладки
-                                self.saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
-                                
-                                continuation.resume(returning: image)
-                            } else {
-                                continuation.resume(returning: nil)
-                            }
-                        }
-                    } catch {
-                        print("Ошибка выполнения screencapture: \(error)")
-                        DispatchQueue.main.async {
-                            NSApp.activate(ignoringOtherApps: true)
-                            continuation.resume(returning: nil)
-                        }
+                    // Показываем приложение обратно
+                    DispatchQueue.main.async {
+                        NSApp.activate(ignoringOtherApps: true)
+                        continuation.resume() // Успешное выполнение
+                    }
+                } catch {
+                    print("Ошибка выполнения screencapture: \(error)")
+                    DispatchQueue.main.async {
+                        NSApp.activate(ignoringOtherApps: true)
+                        continuation.resume(throwing: error) // Передаем ошибку
                     }
                 }
-            } else {
-                print("❌ Не удалось получить ID активного окна")
-                continuation.resume(returning: nil)
             }
         }
     }
@@ -114,77 +130,33 @@ class ScreenshotCapture: NSObject {
         return nil
     }
     
-    private func captureScreenshotWithSystemCommand() {
-        // Скрываем приложение
-        NSApp.hide(nil)
-        
-        // Небольшая задержка
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Используем системную команду screencapture
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            process.arguments = ["-i", "-c", "-x"]
+    func startScreenshot() async -> NSImage? {
+        do {
+            // Используем общий метод для выполнения захвата
+            try await performScreenshotCapture(
+                arguments: ["-i", "-c", "-x"],
+                delay: 0.3
+            )
             
-            do {
-                try process.run()
-                process.waitUntilExit()
-                
-                // Показываем приложение обратно
-                DispatchQueue.main.async {
-                    NSApp.activate(ignoringOtherApps: true)
-                    
-                    // Сохраняем из буфера обмена и выполняем OCR
-                    self.saveFromClipboardAndExtractText()
-                }
-            } catch {
-                print("Ошибка выполнения screencapture: \(error)")
-                DispatchQueue.main.async {
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-            }
+            // Получаем изображение из буфера обмена
+            return getImageFromClipboard()
+        } catch {
+            print("Ошибка захвата скриншота: \(error)")
+            return nil
         }
     }
     
-    private func saveFromClipboardAndExtractText() {
+    private func getImageFromClipboard() -> NSImage? {
         guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
               let image = NSImage(data: pasteboard) else {
             print("Не удалось получить изображение из буфера обмена")
-            return
+            return nil
         }
         
         // Сохраняем скриншот для отладки
         saveDebugScreenshot(image: image, filename: "debug_screenshot.png")
         
-        // Выполняем OCR напрямую с изображением из буфера обмена
-        Task {
-            await extractTextFromScreenshot(image: image)
-        }
-    }
-    
-    private func extractTextFromScreenshot(image: NSImage) async {
-        do {
-            let extractedText = try await ocrService.extractText(from: image)
-            print("Извлеченный текст: \(extractedText)")
-            
-            // Сохраняем текст в буфер обмена
-            saveTextToClipboard(extractedText)
-            
-            // Вызываем callback с извлеченным текстом
-            onTextExtracted?(extractedText)
-            
-        } catch {
-            print("Ошибка OCR: \(error.localizedDescription)")
-            let errorMessage = "❌ Ошибка распознавания текста: \(error.localizedDescription)"
-            saveTextToClipboard(errorMessage)
-            onTextExtracted?(errorMessage)
-        }
-    }
-    
-    private func saveTextToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        print("Текст сохранен в буфер обмена")
+        return image
     }
     
     private func saveDebugScreenshot(image: NSImage, filename: String) {
@@ -208,7 +180,7 @@ class ScreenshotCapture: NSObject {
         }
     }
     
-    func compressImageForOpenAI(_ image: NSImage) -> NSImage? {
+    func compressImage(_ image: NSImage) -> NSImage? {
         // Получаем размер изображения
         let originalSize = image.size
         print("📏 Оригинальный размер изображения: \(Int(originalSize.width))x\(Int(originalSize.height))")
@@ -236,41 +208,6 @@ class ScreenshotCapture: NSObject {
         
         resizedImage.unlockFocus()
         
-        // Сохраняем сжатую версию для отладки
-        saveCompressedDebugScreenshot(resizedImage, filename: "debug_compressed_window.jpg")
-        
         return resizedImage
     }
-    
-    private func saveCompressedDebugScreenshot(_ image: NSImage, filename: String) {
-        // Конвертируем в JPEG с сжатием
-        guard let tiffData = image.tiffRepresentation,
-              let bitmapRep = NSBitmapImageRep(data: tiffData) else {
-            print("Не удалось конвертировать изображение для сжатия")
-            return
-        }
-        
-        // Используем JPEG с качеством 0.7 (хороший баланс между качеством и размером)
-        let compressionProperties: [NSBitmapImageRep.PropertyKey: Any] = [
-            .compressionFactor: 0.7
-        ]
-        
-        guard let jpegData = bitmapRep.representation(using: .jpeg, properties: compressionProperties) else {
-            print("Не удалось создать JPEG данные")
-            return
-        }
-        
-        // Сохраняем файл
-        let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent(filename)
-        
-        do {
-            try jpegData.write(to: fileURL)
-            let sizeKB = jpegData.count / 1024
-            print("🗜️ Сжатый отладочный скриншот сохранен: \(fileURL.path) (\(sizeKB)KB)")
-        } catch {
-            print("Ошибка сохранения сжатого скриншота: \(error)")
-        }
-    }
-    
 }
