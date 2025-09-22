@@ -11,7 +11,7 @@ class ScreenshotCapture: NSObject {
     }
     
     
-    func captureFocusedWindow() async -> NSImage? {
+    func screenshotFocusedWindow() async -> NSImage? {
         // Получаем ID активного окна сразу (без задержек)
         guard let windowID = self.getActiveWindowID() else {
             print("❌ Не удалось получить ID активного окна")
@@ -23,8 +23,7 @@ class ScreenshotCapture: NSObject {
         do {
             // Используем общий метод для выполнения захвата
             try await performScreenshotCapture(
-                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"],
-                delay: 0.1
+                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"]
             )
             
             // Получаем изображение из буфера обмена
@@ -43,46 +42,15 @@ class ScreenshotCapture: NSObject {
             return nil
         }
     }
-    
-    // Общий метод для вызова утилиты screencapture
-    private func executeScreencaptureCommand(arguments: [String]) throws {
+
+    // Общий метод для выполнения захвата
+    private func performScreenshotCapture(arguments: [String]) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         process.arguments = arguments
         
         try process.run()
         process.waitUntilExit()
-    }
-    
-    // Общий метод для выполнения захвата с общим кодом
-    private func performScreenshotCapture(
-        arguments: [String],
-        delay: TimeInterval
-    ) async throws {
-        return try await withCheckedThrowingContinuation { continuation in
-            // Скрываем приложение
-            NSApp.hide(nil)
-            
-            // Задержка для скрытия приложения
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                do {
-                    // Выполняем команду screencapture
-                    try self.executeScreencaptureCommand(arguments: arguments)
-                    
-                    // Показываем приложение обратно
-                    DispatchQueue.main.async {
-                        NSApp.activate(ignoringOtherApps: true)
-                        continuation.resume() // Успешное выполнение
-                    }
-                } catch {
-                    print("Ошибка выполнения screencapture: \(error)")
-                    DispatchQueue.main.async {
-                        NSApp.activate(ignoringOtherApps: true)
-                        continuation.resume(throwing: error) // Передаем ошибку
-                    }
-                }
-            }
-        }
     }
     
     private func getActiveWindowID() -> CGWindowID? {
@@ -130,12 +98,11 @@ class ScreenshotCapture: NSObject {
         return nil
     }
     
-    func startScreenshot() async -> NSImage? {
+    func screenshotRegion() async -> NSImage? {
         do {
             // Используем общий метод для выполнения захвата
             try await performScreenshotCapture(
-                arguments: ["-i", "-c", "-x"],
-                delay: 0.3
+                arguments: ["-i", "-c", "-x"]
             )
             
             // Получаем изображение из буфера обмена

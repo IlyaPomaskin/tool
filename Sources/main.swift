@@ -49,7 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Захватываем активное окно параллельно
             Task {
                 if let screenshotCapture = self?.screenshotCapture {
-                    self?.capturedWindowImage = await screenshotCapture.captureFocusedWindow()
+                    self?.capturedWindowImage = await screenshotCapture.screenshotFocusedWindow()
                 }
             }
         }
@@ -67,7 +67,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Обработчик для скриншотов
         screenshotHotKey?.keyDownHandler = { [weak self] in
             Task {
-                if let image = await self?.screenshotCapture.startScreenshot() {
+                if let image = await self?.screenshotCapture.screenshotRegion() {
                     await self?.processScreenshotImage(image)
                 }
             }
@@ -182,14 +182,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Захватываем активное окно параллельно
         Task {
             if let screenshotCapture = screenshotCapture {
-                capturedWindowImage = await screenshotCapture.captureFocusedWindow()
+                capturedWindowImage = await screenshotCapture.screenshotFocusedWindow()
             }
         }
     }
     
     @objc func takeScreenshot() {
         Task {
-            if let image = await screenshotCapture.startScreenshot() {
+            if let image = await screenshotCapture.screenshotRegion() {
                 await processScreenshotImage(image)
             }
         }
