@@ -59,11 +59,22 @@ class AudioRecorder: NSObject, @unchecked Sendable {
             let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("temp_recording.m4a")
 
+            // let settings: [String: Any] = [
+            //     AVFormatIDKey: kAudioFormatLinearPCM,
+            //     AVSampleRateKey: 16000,
+            //     AVNumberOfChannelsKey: 1,
+            //     AVLinearPCMBitDepthKey: 16,
+            //     AVLinearPCMIsFloatKey: false,
+            //     AVLinearPCMIsBigEndianKey: false
+            // ]
+
             let settings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatLinearPCM,
-                AVSampleRateKey: 16000,
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 44100.0,
                 AVNumberOfChannelsKey: 1,
-                AVLinearPCMBitDepthKey: 16,
+                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+                AVEncoderBitRateKey: 128000,
+                AVLinearPCMBitDepthKey: 32,
                 AVLinearPCMIsFloatKey: false,
                 AVLinearPCMIsBigEndianKey: false
             ]
