@@ -41,8 +41,8 @@ class OpenAIService: @unchecked Sendable {
         let query = AudioTranscriptionQuery(
             file: audioData,
             fileType: .m4a,
-            model: .whisper_1,
-            language: "ru" // Русский язык
+            model: .gpt_4o_transcribe,
+            language: "ru"
         )
         
         // Выполняем транскрипцию
@@ -63,8 +63,8 @@ class OpenAIService: @unchecked Sendable {
         // Создаем запрос к ResponseAPI
         let query = CreateModelResponseQuery(
             input: .textInput(transcription),
-            model: .gpt5_chat,
-            instructions: "Ты полезный ассистент. Отвечай кратко и по делу на русском языке.",
+            model: .gpt5_mini,
+            instructions: Constants.Prompts.assistant,
             previousResponseId: previousResponseId
         )
         
@@ -81,7 +81,7 @@ class OpenAIService: @unchecked Sendable {
     }
     
     // Метод для вызова ResponseAPI с изображением
-    func callResponseAPI(with transcription: String, image: NSImage) async throws -> String {
+    func callResponseAPI(with transcription: String, instructions: String, image: NSImage) async throws -> String {
         guard let openAI = openAI else {
             throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
         }
@@ -116,8 +116,8 @@ class OpenAIService: @unchecked Sendable {
         // Создаем запрос к ResponseAPI с изображением
         let query = CreateModelResponseQuery(
             input: .inputItemList([InputItem.inputMessage(inputMessage)]),
-            model: .gpt5_chat,
-            instructions: "Ты полезный ассистент. Отвечай кратко и по делу на русском языке. У тебя есть доступ к изображению, которое было захвачено с экрана во время записи голоса.",
+            model: .gpt5_mini,
+            instructions: instructions,
             previousResponseId: previousResponseId
         )
         

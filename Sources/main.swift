@@ -121,7 +121,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let windowImage = capturedWindowImage {
                 // Сжимаем изображение перед отправкой
                 if let compressedImage = screenshotCapture.compressImageForOpenAI(windowImage) {
-                    response = try await openAIService.callResponseAPI(with: transcription, image: compressedImage)
+                    response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: compressedImage)
                 } else {
                     response = try await openAIService.callResponseAPI(with: transcription)
                 }
