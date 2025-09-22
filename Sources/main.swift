@@ -4,8 +4,6 @@ import OpenAI
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
-    var textLabel: NSTextField!
     var hotKey: HotKey?
     var screenshotHotKey: HotKey?
     var audioRecorder: AudioRecorder!
@@ -19,37 +17,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popoverService: PopoverService!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Создаем окно
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        
-        window.title = "Mic GPT - Голосовой помощник"
-        window.center()
-        
-        // Создаем текстовое поле для отображения транскрипции
-        textLabel = NSTextField(frame: NSRect(x: 50, y: 50, width: 400, height: 200))
-        textLabel.stringValue = "Нажмите и удерживайте Control + Option + Command + M для записи голоса\n\nНажмите Control + Option + Command + B для создания скриншота\n\nТранскрипция появится здесь..."
-        textLabel.isEditable = false
-        textLabel.isSelectable = true
-        textLabel.font = NSFont.systemFont(ofSize: 14)
-        textLabel.textColor = NSColor.labelColor
-        textLabel.backgroundColor = NSColor.controlBackgroundColor
-        textLabel.alignment = .left
-        textLabel.maximumNumberOfLines = 0
-        textLabel.cell?.wraps = true
-        textLabel.cell?.isScrollable = true
-        
-        // Добавляем элементы в окно
-        window.contentView?.addSubview(textLabel)
-        
-        // Показываем окно и выводим на передний план
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        
         // Инициализируем аудио рекордер
         setupAudioRecorder()
         
@@ -106,23 +73,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func processRecording() async {
         guard let audioRecorder = audioRecorder,
-              let openAIService = openAIService else { return }
+              let openAIService = openAIService,
+              let statusItem = statusItem,
+              let button = statusItem.button else { return }
         
         do {
             // Останавливаем запись и получаем URL файла
             let fileURL = audioRecorder.stopRecording()
             
-            // Обновляем UI
+            // Показываем сообщение об обработке
             await MainActor.run {
-                self.textLabel.stringValue = "🎤 Обработка аудио..."
+                self.popoverService.addMessage("🎤 Обработка аудио...", relativeTo: button)
             }
             
             // Транскрибируем аудио
             let transcription = try await openAIService.transcribeAudio(from: fileURL)
             
-            // Обновляем UI с транскрипцией
+            // Показываем транскрипцию
             await MainActor.run {
-                self.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
+                self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)", relativeTo: button)
             }
             
             // Получаем ответ от AI (с изображением если есть)
@@ -138,9 +107,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 response = try await openAIService.callResponseAPI(with: transcription)
             }
             
-            // Обновляем UI с ответом
+            // Показываем ответ
             await MainActor.run {
-                self.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
+                self.popoverService.addMessage("🤖 Ответ:\n\n\(response)", relativeTo: button)
                 // Очищаем захваченное изображение
                 self.capturedWindowImage = nil
             }
@@ -148,7 +117,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             // Обрабатываем ошибки
             await MainActor.run {
-                self.textLabel.stringValue = "❌ Ошибка:\n\n\(error.localizedDescription)"
+                self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)", relativeTo: button)
             }
         }
     }
@@ -156,9 +125,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func setupOCRHandler() {
         screenshotCapture.onTextExtracted = { [weak self] extractedText in
             Task { @MainActor in
-                // Обновляем UI в главном окне
-                self?.textLabel.stringValue = "📸 Извлеченный текст:\n\n\(extractedText)"
-                
                 // Показываем popover с результатами OCR
                 if let button = self?.statusItem.button {
                     self?.popoverService.showOCRResult(extractedText, relativeTo: button)
@@ -190,13 +156,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         menuBarMenu.addItem(NSMenuItem.separator())
         
-        // Показать окно
-        let showWindowItem = NSMenuItem(title: "Показать окно", action: #selector(showWindow), keyEquivalent: "")
-        showWindowItem.target = self
-        menuBarMenu.addItem(showWindowItem)
-        
-        menuBarMenu.addItem(NSMenuItem.separator())
-        
         // Запись голоса
         let recordItem = NSMenuItem(title: "🎤 Записать голос", action: #selector(startRecording), keyEquivalent: "")
         recordItem.target = self
@@ -222,10 +181,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // При клике на иконку показываем меню (уже настроено автоматически)
     }
     
-    @objc func showWindow() {
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
     
     @objc func startRecording() {
         // Начинаем запись голоса

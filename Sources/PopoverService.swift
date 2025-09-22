@@ -1,9 +1,13 @@
 import AppKit
 
-// Сервис для создания и управления popover с OCR результатами
+// Сервис для создания и управления popover с очередью сообщений
 @MainActor
 class PopoverService {
     private var popover: NSPopover?
+    private var messageQueue: [String] = []
+    private var isShowing = false
+    private var currentMessageTimer: Timer?
+    private var isProcessingQueue = false
     
     init() {
         setupPopover()
@@ -16,12 +20,62 @@ class PopoverService {
     }
     
     func showOCRResult(_ text: String, relativeTo button: NSButton) {
+        addMessage("📸 Извлеченный текст:\n\n\(text)", relativeTo: button)
+    }
+    
+    // Добавляет сообщение в очередь и запускает обработку очереди
+    func addMessage(_ message: String, relativeTo button: NSButton) {
+        messageQueue.append(message)
+        
+        // Если очередь не обрабатывается, начинаем обработку
+        if !isProcessingQueue {
+            processMessageQueue(relativeTo: button)
+        }
+    }
+    
+    // Обрабатывает очередь сообщений поочередно
+    private func processMessageQueue(relativeTo button: NSButton) {
+        guard !messageQueue.isEmpty else {
+            isProcessingQueue = false
+            return
+        }
+        
+        isProcessingQueue = true
+        
+        // Берем первое сообщение из очереди
+        let currentMessage = messageQueue.removeFirst()
+        
+        // Показываем сообщение
+        showMessage(currentMessage, relativeTo: button)
+        
+        // Устанавливаем таймер на 3 секунды для текущего сообщения
+        currentMessageTimer?.invalidate()
+        currentMessageTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                // Скрываем текущее сообщение
+                self?.popover?.performClose(nil)
+                self?.isShowing = false
+                
+                // Обрабатываем следующее сообщение если есть
+                self?.processMessageQueue(relativeTo: button)
+            }
+        }
+    }
+    
+    // Показывает конкретное сообщение
+    private func showMessage(_ text: String, relativeTo button: NSButton) {
         guard let popover = popover else { return }
         
         // Создаем кастомный view controller с обработкой кликов
         let viewController = PopoverViewController()
         viewController.onClick = { [weak self] in
+            // При клике закрываем текущее сообщение и переходим к следующему
+            self?.currentMessageTimer?.invalidate()
             self?.popover?.performClose(nil)
+            self?.isShowing = false
+            
+            // Если есть еще сообщения, обрабатываем их
+            self?.processMessageQueue(relativeTo: button)
         }
         
         // Создаем контейнер view с отступами
@@ -89,7 +143,7 @@ class PopoverService {
         
         let popoverSize = NSSize(
             width: min(max(maxLineWidth + padding * 2, minWidth), 300),
-            height: min(max(estimatedHeight + padding * 2, minHeight), 100) 
+            height: min(max(estimatedHeight + padding * 2, minHeight), 200) // Увеличиваем максимальную высоту
         )
         
         // Определяем, нужно ли обрезать текст и получаем отображаемый текст
@@ -134,15 +188,21 @@ class PopoverService {
         
         // Показываем popover рядом с иконкой menu bar
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        
-        // Автоматически скрываем popover через 3 секунды
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            popover.performClose(nil)
-        }
+        isShowing = true
+    }
+    
+    // Скрывает popover и очищает очередь
+    private func hidePopover() {
+        popover?.performClose(nil)
+        messageQueue.removeAll()
+        isShowing = false
+        isProcessingQueue = false
+        currentMessageTimer?.invalidate()
+        currentMessageTimer = nil
     }
     
     func close() {
-        popover?.performClose(nil)
+        hidePopover()
     }
     
     private func calculateTextFitting(
