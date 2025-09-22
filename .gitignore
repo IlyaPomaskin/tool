@@ -6,3 +6,9 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Debug files
+debug_compressed_window.jpg
+debug_focused_window.png
+debug_screenshot.png
+temp_recording.m4a
