@@ -39,16 +39,10 @@ class AudioRecorder: NSObject, @unchecked Sendable {
     }
     
     private func requestMicrophoneAccess() async -> Bool {
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    AVCaptureDevice.requestAccess(for: .audio) { granted in
-                        continuation.resume(returning: granted)
-                    }
-                }
+        return await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
             }
-        } onCancel: {
-            // Обработка отмены
         }
     }
 

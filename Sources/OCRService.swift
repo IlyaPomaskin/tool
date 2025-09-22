@@ -55,15 +55,6 @@ class OCRService: NSObject {
         
         return try await extractText(from: image)
     }
-    
-    func extractTextFromClipboard() async throws -> String {
-        guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
-              let image = NSImage(data: pasteboard) else {
-            throw OCRError.invalidImage
-        }
-        
-        return try await extractText(from: image)
-    }
 }
 
 enum OCRError: Error, LocalizedError {
