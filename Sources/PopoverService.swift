@@ -8,9 +8,14 @@ class PopoverService {
     private var isShowing = false
     private var currentMessageTimer: Timer?
     private var isProcessingQueue = false
+    private weak var button: NSButton?
     
     init() {
         setupPopover()
+    }
+    
+    func setButton(_ button: NSButton) {
+        self.button = button
     }
     
     private func setupPopover() {
@@ -18,23 +23,19 @@ class PopoverService {
         popover?.behavior = .transient
         popover?.animates = true
     }
-    
-    func showOCRResult(_ text: String, relativeTo button: NSButton) {
-        addMessage("📸 Извлеченный текст:\n\n\(text)", relativeTo: button)
-    }
-    
+
     // Добавляет сообщение в очередь и запускает обработку очереди
-    func addMessage(_ message: String, relativeTo button: NSButton) {
+    func addMessage(_ message: String) {
         messageQueue.append(message)
         
         // Если очередь не обрабатывается, начинаем обработку
         if !isProcessingQueue {
-            processMessageQueue(relativeTo: button)
+            processMessageQueue()
         }
     }
     
     // Обрабатывает очередь сообщений поочередно
-    private func processMessageQueue(relativeTo button: NSButton) {
+    private func processMessageQueue() {
         guard !messageQueue.isEmpty else {
             isProcessingQueue = false
             return
@@ -46,7 +47,7 @@ class PopoverService {
         let currentMessage = messageQueue.removeFirst()
         
         // Показываем сообщение
-        showMessage(currentMessage, relativeTo: button)
+        showMessage(currentMessage)
         
         // Устанавливаем таймер на 3 секунды для текущего сообщения
         currentMessageTimer?.invalidate()
@@ -57,13 +58,13 @@ class PopoverService {
                 self?.isShowing = false
                 
                 // Обрабатываем следующее сообщение если есть
-                self?.processMessageQueue(relativeTo: button)
+                self?.processMessageQueue()
             }
         }
     }
     
     // Показывает конкретное сообщение
-    private func showMessage(_ text: String, relativeTo button: NSButton) {
+    private func showMessage(_ text: String) {
         guard let popover = popover else { return }
         
         // Создаем кастомный view controller с обработкой кликов
@@ -75,7 +76,7 @@ class PopoverService {
             self?.isShowing = false
             
             // Если есть еще сообщения, обрабатываем их
-            self?.processMessageQueue(relativeTo: button)
+            self?.processMessageQueue()
         }
         
         // Создаем контейнер view с отступами
@@ -186,6 +187,11 @@ class PopoverService {
         // Настраиваем popover для наследования системной темы
         popover.appearance = nil // nil означает наследование системной темы
         
+        guard let button = self.button else {
+            print("⚠️ Button не установлен в PopoverService")
+            return
+        }
+
         // Показываем popover рядом с иконкой menu bar
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         isShowing = true

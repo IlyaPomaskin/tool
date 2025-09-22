@@ -42,43 +42,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         screenshotHotKey.keyDownHandler = { [weak self] in
             Task {
                 if let image = await self?.screenshotCapture.screenshotRegion() {
-                    await self?.processScreenshotImage(image)
+                    await self?.screenshotOcr(image)
                 }
             }
         }
     }
     
     func processRecording() async {
-        guard let statusItem = statusItem,
-              let button = statusItem.button else { return }
+        guard statusItem != nil else { return }
         
         do {
-            // Останавливаем запись и получаем URL файла
             let fileURL = audioRecorder.stopRecording()
-            
-            // Показываем сообщение об обработке
-            self.popoverService.addMessage("🎤 Обработка аудио...", relativeTo: button)
-            
-            // Транскрибируем аудио
-            let transcription = try await openAIService.transcribeAudio(from: fileURL)
-            
-            // Показываем транскрипцию
-            self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)", relativeTo: button)
-            
-            // Получаем ответ от AI (с изображением если есть)
-            let response: String
 
+            self.popoverService.addMessage("🎤 Обработка аудио...")
+            let transcription = try await openAIService.transcribeAudio(from: fileURL)
+            self.popoverService.addMessage("🎤 Транскрипция:\n\n\(transcription)")
+            
+            let response: String
             if let windowImage = capturedWindowImage {
                 response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: windowImage)
             } else {
                 response = try await openAIService.callResponseAPI(with: transcription)
             }
+            self.popoverService.addMessage("🤖 Ответ:\n\n\(response)")
 
-            self.popoverService.addMessage("🤖 Ответ:\n\n\(response)", relativeTo: button)
             self.capturedWindowImage = nil
             
         } catch {
-            self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)", relativeTo: button)
+            self.popoverService.addMessage("❌ Ошибка:\n\n\(error.localizedDescription)")
         }
     }
     
@@ -93,6 +84,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "tuningfork", accessibilityDescription: "Mic GPT")
             button.image?.size = NSSize(width: 18, height: 18)
             button.target = self
+            
+            // Устанавливаем button в PopoverService
+            popoverService.setButton(button)
         }
         
         // Создаем меню
@@ -126,7 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menuBarMenu
     }
 
-    private func processScreenshotImage(_ image: NSImage) async {
+    private func screenshotOcr(_ image: NSImage) async {
         do {
             let extractedText = try await ocrService.extractText(from: image)
             print("Извлеченный текст: \(extractedText)")
@@ -138,18 +132,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             await MainActor.run {
                 // Показываем popover с результатами OCR
-                if let button = self.statusItem.button {
-                    self.popoverService.showOCRResult(extractedText, relativeTo: button)
-                }
+                self.popoverService.addMessage("📸 Извлеченный текст:\n\n\(extractedText)")
             }
         } catch {
             print("Ошибка OCR: \(error.localizedDescription)")
             let errorMessage = "❌ Ошибка распознавания текста: \(error.localizedDescription)"
             
             await MainActor.run {
-                if let button = self.statusItem.button {
-                    self.popoverService.showOCRResult(errorMessage, relativeTo: button)
-                }
+                self.popoverService.addMessage(errorMessage)
             }
         }
     }
