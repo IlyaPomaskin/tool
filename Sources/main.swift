@@ -5,7 +5,6 @@ import OpenAI
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var button: NSButton!
     var textLabel: NSTextField!
     var hotKey: HotKey?
     var audioRecorder: AudioRecorder!
@@ -23,13 +22,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Mic GPT - Голосовой помощник"
         window.center()
         
-        // Создаем кнопку
-        button = NSButton(frame: NSRect(x: 200, y: 300, width: 100, height: 40))
-        button.title = "Hello World"
-        button.bezelStyle = .rounded
-        button.target = self
-        button.action = #selector(buttonClicked)
-        
         // Создаем текстовое поле для отображения транскрипции
         textLabel = NSTextField(frame: NSRect(x: 50, y: 50, width: 400, height: 200))
         textLabel.stringValue = "Нажмите и удерживайте Control + Option + Command + M для записи голоса\n\nТранскрипция появится здесь..."
@@ -44,11 +36,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         textLabel.cell?.isScrollable = true
         
         // Добавляем элементы в окно
-        window.contentView?.addSubview(button)
         window.contentView?.addSubview(textLabel)
         
-        // Показываем окно
+        // Показываем окно и выводим на передний план
         window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         
         // Инициализируем аудио рекордер
         setupAudioRecorder()
@@ -91,7 +83,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Обновляем UI
             await MainActor.run {
                 self.textLabel.stringValue = "🎤 Обработка аудио..."
-                self.button.title = "Обработка..."
             }
             
             // Транскрибируем аудио
@@ -100,7 +91,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Обновляем UI с транскрипцией
             await MainActor.run {
                 self.textLabel.stringValue = "🎤 Транскрипция:\n\n\(transcription)"
-                self.button.title = "Получение ответа..."
             }
             
             // Получаем ответ от AI
@@ -109,24 +99,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Обновляем UI с ответом
             await MainActor.run {
                 self.textLabel.stringValue = "🤖 Ответ:\n\n\(response)"
-                self.button.title = "Hello World"
             }
             
         } catch {
             // Обрабатываем ошибки
             await MainActor.run {
                 self.textLabel.stringValue = "❌ Ошибка:\n\n\(error.localizedDescription)"
-                self.button.title = "Hello World"
             }
         }
-    }
-    
-    @objc func buttonClicked() {
-        let alert = NSAlert()
-        alert.messageText = "Mic GPT"
-        alert.informativeText = "Голосовой помощник с OpenAI транскрипцией\n\nИспользуйте хоткей Control + Option + Command + M для записи голоса"
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
