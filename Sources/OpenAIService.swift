@@ -33,7 +33,6 @@ class OpenAIService: @unchecked Sendable {
         
         // Читаем файл с диска
         let audioData = try Data(contentsOf: fileURL)
-        print("Прочитан файл: \(fileURL.path) (\(audioData.count) байт)")
         
         print("Отправляем M4A аудио на транскрипцию...")
         
@@ -54,19 +53,37 @@ class OpenAIService: @unchecked Sendable {
     
     // Метод для вызова ResponseAPI
     func callResponseAPI(with transcription: String) async throws -> String {
-        guard let openAI = openAI else {
-            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
-        }
-        
-        print("🤖 Вызываем ResponseAPI с транскрипцией: \(transcription)")
-        
-        // Создаем запрос к ResponseAPI
         let query = CreateModelResponseQuery(
             input: .textInput(transcription),
             model: .gpt5_mini,
             instructions: Constants.Prompts.assistant,
             previousResponseId: previousResponseId
         )
+        
+        return try await executeResponseQuery(query, description: "с транскрипцией: \(transcription)")
+    }
+    
+    // Метод для вызова ResponseAPI с изображением
+    func callResponseAPI(with transcription: String, instructions: String, image: NSImage) async throws -> String {
+        let inputMessage = try createInputMessageWithImage(transcription: transcription, image: image)
+        
+        let query = CreateModelResponseQuery(
+            input: .inputItemList([InputItem.inputMessage(inputMessage)]),
+            model: .gpt5_mini,
+            instructions: instructions,
+            previousResponseId: previousResponseId
+        )
+        
+        return try await executeResponseQuery(query, description: "с транскрипцией и изображением: \(transcription)")
+    }
+
+    // Общий метод для выполнения запроса к ResponseAPI
+    private func executeResponseQuery(_ query: CreateModelResponseQuery, description: String) async throws -> String {
+        guard let openAI = openAI else {
+            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
+        }
+        
+        print("🤖 Вызываем ResponseAPI \(description)")
         
         // Выполняем запрос
         let response = try await openAI.responses.createResponse(query: query)
@@ -80,14 +97,8 @@ class OpenAIService: @unchecked Sendable {
         return responseText
     }
     
-    // Метод для вызова ResponseAPI с изображением
-    func callResponseAPI(with transcription: String, instructions: String, image: NSImage) async throws -> String {
-        guard let openAI = openAI else {
-            throw NSError(domain: "OpenAIService", code: 2, userInfo: [NSLocalizedDescriptionKey: "OpenAI клиент не инициализирован"])
-        }
-        
-        print("🤖 Вызываем ResponseAPI с транскрипцией и изображением: \(transcription)")
-        
+    // Создание сообщения с изображением
+    private func createInputMessageWithImage(transcription: String, image: NSImage) throws -> EasyInputMessage {
         // Конвертируем NSImage в Data (уже сжатое изображение)
         guard let tiffData = image.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiffData),
@@ -100,7 +111,7 @@ class OpenAIService: @unchecked Sendable {
         let dataURL = "data:image/jpeg;base64,\(base64Image)"
         
         // Создаем сообщение с текстом и изображением
-        let inputMessage = EasyInputMessage(
+        return EasyInputMessage(
             role: .user,
             content: .inputItemContentList([
                 .inputText(Components.Schemas.InputTextContent(_type: .inputText, text: transcription)),
@@ -112,25 +123,6 @@ class OpenAIService: @unchecked Sendable {
                 ))
             ])
         )
-        
-        // Создаем запрос к ResponseAPI с изображением
-        let query = CreateModelResponseQuery(
-            input: .inputItemList([InputItem.inputMessage(inputMessage)]),
-            model: .gpt5_mini,
-            instructions: instructions,
-            previousResponseId: previousResponseId
-        )
-        
-        // Выполняем запрос
-        let response = try await openAI.responses.createResponse(query: query)
-        let responseText = getResponseText(from: response)
-        print("✅ Ответ получен: \(responseText)")
-        
-        // Сохраняем responseId для следующего вызова
-        previousResponseId = response.id
-        print("💾 Сохранен responseId: \(response.id)")
-        
-        return responseText
     }
 
     private func getResponseText(from response: ResponseObject) -> String {
