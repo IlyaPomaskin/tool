@@ -1,4 +1,4 @@
-# Tool - Voice Assistant
+# Tool
 
 ## 🚀 Features
 
