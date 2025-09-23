@@ -16,3 +16,4 @@ temp_recording.m4a
 # Whisper models - exclude large binary files but keep README
 models/*.bin
 models/*.ggml
+models/*.mlmodelc  

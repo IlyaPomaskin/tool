@@ -4,7 +4,7 @@ import AVFoundation
 class WhisperService: @unchecked Sendable {
     private var whisperContext: WhisperContext?
     
-    init(modelFileName: String = "ggml-base.bin") {
+    init(modelFileName: String = "ggml-large-v3-turbo") {
         let currentDir = FileManager.default.currentDirectoryPath
         let fullModelPath = URL(fileURLWithPath: currentDir)
             .appendingPathComponent("models")
