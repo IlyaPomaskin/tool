@@ -5,13 +5,14 @@ import OpenAI
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var recordingHotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
+    var translateHotKey = HotKey(key: .n, modifiers: [.control, .option, .command])
     var screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
     var audioRecorder = AudioRecorder()
     var openAIService = OpenAIService()
-    var whisperService = WhisperService(modelFileName: "ggml-large-v3-turbo-q8_0.bin")
+    var whisperService = WhisperService(modelFileName: "ggml-large-v3-turbo.bin")
     var screenshotCapture = ScreenshotCapture()
     var ocrService = OCRService()
-    var capturedWindowImage: NSImage?
+    // var capturedWindowImage: NSImage? = nil
     
     var statusItem: NSStatusItem!
     var menuBarMenu: NSMenu!
@@ -24,19 +25,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func setupGlobalHotkeys() {
+        var capturedWindowImage: NSImage? = nil
+
         recordingHotKey.keyDownHandler = { [weak self] in
-            // Start audio recording immediately
             self?.audioRecorder.startRecording()
             
-            // Capture active window in parallel
             Task {
-                self?.capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
+                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
             }
         }
-        
         recordingHotKey.keyUpHandler = { [weak self] in
             Task {
-                await self?.processRecording()
+                let transcription = await self?.processRecording(translate: false) ?? ""
+                self?.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
+                self?.setClipboard(transcription)
+                let response = await self?.callOpenAI(transcription: transcription, image: capturedWindowImage) ?? ""
+                self?.popoverService.addMessage("🤖 Response:\n\n\(response)")
+                self?.setClipboard(response)
+                capturedWindowImage = nil
             }
         }
 
@@ -47,40 +53,56 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-    }
-    
-    func processRecording() async {
-        guard statusItem != nil else { return }
-        
-        do {
-            let fileURL = audioRecorder.stopRecording()
 
-            self.popoverService.addMessage("🎤 Processing audio...")
-            
-            let transcription = try await whisperService.transcribe(from: fileURL)
-            
-            if transcription.isEmpty {
-                self.popoverService.addMessage("🎤 No transcription available")
-                return
-            } 
-
-            self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
-
-            let response: String
-            if let windowImage = capturedWindowImage {
-                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: windowImage)
-            } else {
-                response = try await openAIService.callResponseAPI(with: transcription)
+        translateHotKey.keyDownHandler = { [weak self] in
+            Task {
+                self?.audioRecorder.startRecording()
             }
-            self.popoverService.addMessage("🤖 Response:\n\n\(response)")
-
-            self.capturedWindowImage = nil
-            
-        } catch {
-            self.popoverService.addMessage("❌ Error:\n\n\(error.localizedDescription)")
+        }
+        translateHotKey.keyUpHandler = { [weak self] in
+            Task {
+                let transcription = await self?.processRecording(translate: true) ?? ""
+                self?.popoverService.addMessage("🎤 Local Translation:\n\n\(transcription)")
+                self?.setClipboard(transcription)
+            }
         }
     }
     
+    func processRecording(translate: Bool = false) async -> String {
+        guard statusItem != nil else { return "" }
+        
+        let fileURL = audioRecorder.stopRecording()
+
+        self.popoverService.addMessage("🎤 Processing audio...")
+        
+        let transcription = await whisperService.transcribe(from: fileURL, translate: translate)
+        if transcription.isEmpty {
+            self.popoverService.addMessage("🎤 No transcription available")
+            return ""
+        }
+
+        self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
+
+        return transcription
+    }
+
+    func callOpenAI(transcription: String, image: NSImage? = nil) async -> String {
+        guard statusItem != nil else { return "" }
+        
+        let response: String
+        do {
+            if let image = image {
+                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: image)
+            } else {
+                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.assistant)
+            }
+        } catch {
+            response = "Error: \(error.localizedDescription)"
+        }
+        
+        self.popoverService.addMessage("🤖 Response:\n\n\(response)")
+        return response
+    }
     
     func setupMenuBar() {
         // Create status item in menu bar
@@ -128,15 +150,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menuBarMenu
     }
 
+    func setClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
     private func screenshotOcr(_ image: NSImage) async {
         do {
             let extractedText = try await ocrService.extractText(from: image)
             print("Extracted text: \(extractedText)")
             
-            // Save text to clipboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(extractedText, forType: .string)
+            setClipboard(extractedText)
             
             await MainActor.run {
                 // Show popover with OCR results

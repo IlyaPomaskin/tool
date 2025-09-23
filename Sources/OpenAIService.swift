@@ -52,11 +52,11 @@ class OpenAIService: @unchecked Sendable {
     }
     
     // Method for calling ResponseAPI
-    func callResponseAPI(with transcription: String) async throws -> String {
+    func callResponseAPI(with transcription: String, instructions: String) async throws -> String {
         let query = CreateModelResponseQuery(
             input: .textInput(transcription),
             model: .gpt5_mini,
-            instructions: Constants.Prompts.assistant,
+            instructions: instructions,
             previousResponseId: previousResponseId
         )
         

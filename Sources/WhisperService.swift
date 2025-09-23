@@ -25,7 +25,7 @@ class WhisperService: @unchecked Sendable {
     }
 
     // Main transcription method
-    func transcribe(from fileURL: URL) async throws -> String {
+    func transcribe(from fileURL: URL, translate: Bool = false) async -> String {
         guard let context = whisperContext else {
             print("❌ Whisper context not initialized")
             return ""
@@ -36,7 +36,7 @@ class WhisperService: @unchecked Sendable {
             let samples = try await convertAudioToSamples(fileURL: fileURL)
             
             // Perform transcription with Russian language
-            await context.fullTranscribe(samples: samples, language: "ru")
+            await context.fullTranscribe(samples: samples, language: "ru", translate: translate)
             
             // Get transcription result
             let transcription = await context.getTranscription()
@@ -49,7 +49,7 @@ class WhisperService: @unchecked Sendable {
             return ""
         }
     }
-    
+
     // Convert M4A audio file to Float samples for Whisper
     private func convertAudioToSamples(fileURL: URL) async throws -> [Float] {
         return try await withCheckedThrowingContinuation { continuation in

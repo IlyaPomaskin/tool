@@ -21,7 +21,7 @@ actor WhisperContext {
         whisper_free(self.context)
     }
 
-    func fullTranscribe(samples: [Float], language: String = "en") {
+    func fullTranscribe(samples: [Float], language: String = "en", translate: Bool = false) {
         // Leave 2 processors free (i.e. the high-efficiency cores).
         let maxThreads = max(1, min(8, cpuCount() - 2))
         print("Selecting \(maxThreads) threads")
@@ -32,7 +32,7 @@ actor WhisperContext {
             params.print_progress   = false
             params.print_timestamps = true
             params.print_special    = false
-            params.translate        = false
+            params.translate        = translate
             params.language         = lang
             params.n_threads        = Int32(maxThreads)
             params.offset_ms        = 0
