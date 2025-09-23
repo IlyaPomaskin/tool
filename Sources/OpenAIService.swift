@@ -41,7 +41,7 @@ class OpenAIService: @unchecked Sendable {
             file: audioData,
             fileType: .m4a,
             model: .gpt_4o_transcribe,
-            language: "ru"
+            language: "en"
         )
         
         // Perform transcription

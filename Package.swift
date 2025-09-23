@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "mic-gpt",
+    name: "tool",
     platforms: [
         .macOS(.v13)
     ],
@@ -13,11 +13,15 @@ let package = Package(
         .package(url: "https://github.com/MacPaw/OpenAI", from: "0.4.0")
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
-            name: "mic-gpt",
-            dependencies: ["HotKey", "OpenAI"]
+            name: "tool",
+            dependencies: ["HotKey", "OpenAI", "WhisperFramework"],
+            path: "Sources"
+        ),
+        .binaryTarget(
+            name: "WhisperFramework",
+            url: "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.5/whisper-v1.7.5-xcframework.zip",
+            checksum: "c7faeb328620d6012e130f3d705c51a6ea6c995605f2df50f6e1ad68c59c6c4a"
         ),
     ]
 )

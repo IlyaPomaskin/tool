@@ -12,3 +12,7 @@ debug_compressed_window.jpg
 debug_focused_window.png
 debug_screenshot.png
 temp_recording.m4a
+
+# Whisper models - exclude large binary files but keep README
+models/*.bin
+models/*.ggml

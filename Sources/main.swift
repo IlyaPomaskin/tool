@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
     var audioRecorder = AudioRecorder()
     var openAIService = OpenAIService()
+    var whisperService = WhisperService(modelFileName: "ggml-base.bin")
     var screenshotCapture = ScreenshotCapture()
     var ocrService = OCRService()
     var capturedWindowImage: NSImage?
@@ -55,8 +56,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let fileURL = audioRecorder.stopRecording()
 
             self.popoverService.addMessage("🎤 Processing audio...")
-            let transcription = try await openAIService.transcribeAudio(from: fileURL)
-            self.popoverService.addMessage("🎤 Transcription:\n\n\(transcription)")
+            
+            let transcription = try await whisperService.transcribe(from: fileURL)
+            self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
             
             let response: String
             if let windowImage = capturedWindowImage {
