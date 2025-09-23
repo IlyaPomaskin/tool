@@ -28,7 +28,7 @@ class WhisperService: @unchecked Sendable {
     func transcribe(from fileURL: URL) async throws -> String {
         guard let context = whisperContext else {
             print("❌ Whisper context not initialized")
-            return "No transcription available"
+            return ""
         }
 
         do {
@@ -46,7 +46,7 @@ class WhisperService: @unchecked Sendable {
 
         } catch {
             print("❌ Error transcribing audio: \(error.localizedDescription)")
-            return "No transcription available"
+            return ""
         }
     }
     

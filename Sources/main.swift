@@ -58,8 +58,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.popoverService.addMessage("🎤 Processing audio...")
             
             let transcription = try await whisperService.transcribe(from: fileURL)
-            self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
             
+            if transcription.isEmpty {
+                self.popoverService.addMessage("🎤 No transcription available")
+                return
+            } 
+
+            self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
+
             let response: String
             if let windowImage = capturedWindowImage {
                 response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: windowImage)
