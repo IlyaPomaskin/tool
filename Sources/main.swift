@@ -8,7 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
     var audioRecorder = AudioRecorder()
     var openAIService = OpenAIService()
-    var whisperService = WhisperService(modelFileName: "ggml-base.bin")
+    var whisperService = WhisperService(modelFileName: "ggml-large-v3-turbo-q8_0.bin")
     var screenshotCapture = ScreenshotCapture()
     var ocrService = OCRService()
     var capturedWindowImage: NSImage?
