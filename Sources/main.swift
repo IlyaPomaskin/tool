@@ -5,10 +5,12 @@ import OpenAI
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var recordingHotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
+    var openAIHotKey = HotKey(key: .v, modifiers: [.control, .option, .command])
     var translateHotKey = HotKey(key: .n, modifiers: [.control, .option, .command])
     var screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
     var audioRecorder = AudioRecorder()
     var openAIService = OpenAIService()
+    var lmStudioService = LMStudioService(baseURL: Constants.LMStudio.defaultBaseURL, model: Constants.LMStudio.defaultModel)
     var whisperService = WhisperService(modelFileName: "ggml-large-v3-turbo.bin")
     var screenshotCapture = ScreenshotCapture()
     var ocrService = OCRService()
@@ -39,8 +41,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
                 self?.setClipboard(transcription)
+                
+                // Call LM Studio instead of OpenAI
+                let response = await self?.callLMStudio(transcription: transcription) ?? ""
+                self?.setClipboard(response)
+                capturedWindowImage = nil
+            }
+        }
+
+        openAIHotKey.keyDownHandler = { [weak self] in
+            self?.audioRecorder.startRecording()
+            
+            Task {
+                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
+            }
+        }
+        openAIHotKey.keyUpHandler = { [weak self] in
+            Task {
+                let transcription = await self?.processRecording(translate: false) ?? ""
+                self?.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
+                self?.setClipboard(transcription)
+                
+                // Call OpenAI with image context
                 let response = await self?.callOpenAI(transcription: transcription, image: capturedWindowImage) ?? ""
-                self?.popoverService.addMessage("🤖 Response:\n\n\(response)")
                 self?.setClipboard(response)
                 capturedWindowImage = nil
             }
@@ -104,6 +127,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return response
     }
     
+    func callLMStudio(transcription: String) async -> String {
+        guard statusItem != nil else { return "" }
+        
+        let response: String
+        do {
+            // Check if LM Studio is available first
+            let isAvailable = await lmStudioService.checkAvailability()
+            if !isAvailable {
+                response = "❌ LM Studio not available. Make sure it's running on \(Constants.LMStudio.defaultBaseURL)"
+            } else {
+                response = try await lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator)
+            }
+        } catch {
+            response = "Error: \(error.localizedDescription)"
+        }
+        
+        self.popoverService.addMessage("🤖 LM Studio Response:\n\n\(response)")
+        return response
+    }
+    
     func setupMenuBar() {
         // Create status item in menu bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -129,10 +172,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         menuBarMenu.addItem(NSMenuItem.separator())
         
-        // Voice recording
-        let recordItem = NSMenuItem(title: "🎤 GPT: Control + Option + Command + M", action: nil, keyEquivalent: "")
+        // Voice recording with LM Studio
+        let recordItem = NSMenuItem(title: "🎤 LM Studio: Control + Option + Command + M", action: nil, keyEquivalent: "")
         recordItem.target = self
         menuBarMenu.addItem(recordItem)
+        
+        // Voice recording with OpenAI
+        let openAIItem = NSMenuItem(title: "🎤 OpenAI: Control + Option + Command + O", action: nil, keyEquivalent: "")
+        openAIItem.target = self
+        menuBarMenu.addItem(openAIItem)
         
         // Screenshot
         let screenshotItem = NSMenuItem(title: "📸 OCR: Control + Option + Command + B", action: nil, keyEquivalent: "")
