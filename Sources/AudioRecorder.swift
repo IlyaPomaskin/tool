@@ -51,24 +51,14 @@ class AudioRecorder: NSObject, @unchecked Sendable {
     func startRecording() {
         do {
             let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("temp_recording.m4a")
+                .appendingPathComponent("temp_recording.wav")
 
-            // let settings: [String: Any] = [
-            //     AVFormatIDKey: kAudioFormatLinearPCM,
-            //     AVSampleRateKey: 16000,
-            //     AVNumberOfChannelsKey: 1,
-            //     AVLinearPCMBitDepthKey: 16,
-            //     AVLinearPCMIsFloatKey: false,
-            //     AVLinearPCMIsBigEndianKey: false
-            // ]
-
+            // Settings optimized for whisper.cpp: 16kHz, mono, 16-bit PCM
             let settings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 44100.0,
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16000.0,
                 AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-                AVEncoderBitRateKey: 128000,
-                AVLinearPCMBitDepthKey: 32,
+                AVLinearPCMBitDepthKey: 16,
                 AVLinearPCMIsFloatKey: false,
                 AVLinearPCMIsBigEndianKey: false
             ]
@@ -77,8 +67,8 @@ class AudioRecorder: NSObject, @unchecked Sendable {
             audioRecorder?.prepareToRecord()
             audioRecorder?.record()
 
-            print("Recording started: \(tempURL)")}
-        catch {
+            print("Recording started: \(tempURL)")
+        } catch {
             print("Recording error: \(error)")
         }
     }
@@ -86,7 +76,7 @@ class AudioRecorder: NSObject, @unchecked Sendable {
      func stopRecording() -> URL {
         audioRecorder?.stop()
         let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("temp_recording.m4a")
+            .appendingPathComponent("temp_recording.wav")
         print("Recording stopped")
         return tempURL
     }

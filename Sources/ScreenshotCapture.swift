@@ -102,7 +102,7 @@ class ScreenshotCapture: NSObject {
 
             let image = compress ? self.compressImage(rawImage) : rawImage
 
-            saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
+            // saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
 
             return image
         } catch {
@@ -118,8 +118,7 @@ class ScreenshotCapture: NSObject {
             return nil
         }
         
-        // Save screenshot for debugging
-        saveDebugScreenshot(image: image, filename: "debug_screenshot.png")
+        // saveDebugScreenshot(image: image, filename: "debug_screenshot.png")
         
         return image
     }

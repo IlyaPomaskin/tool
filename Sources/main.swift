@@ -61,7 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         translateHotKey.keyUpHandler = { [weak self] in
             Task {
-                let transcription = await self?.processRecording(translate: true) ?? ""
+                let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.popoverService.addMessage("🎤 Local Translation:\n\n\(transcription)")
                 self?.setClipboard(transcription)
             }

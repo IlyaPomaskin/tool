@@ -26,6 +26,7 @@ actor WhisperContext {
         let maxThreads = max(1, min(8, cpuCount() - 2))
         print("Selecting \(maxThreads) threads")
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
+        print("Language: \(language), Translate: \(translate)")
         language.withCString { lang in
             // Adapted from whisper.objc
             params.print_realtime   = true

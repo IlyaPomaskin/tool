@@ -4,7 +4,7 @@ import AVFoundation
 class WhisperService: @unchecked Sendable {
     private var whisperContext: WhisperContext?
     
-    init(modelFileName: String = "ggml-large-v3-turbo") {
+    init(modelFileName: String = "ggml-large-v3") {
         let currentDir = FileManager.default.currentDirectoryPath
         let fullModelPath = URL(fileURLWithPath: currentDir)
             .appendingPathComponent("models")
@@ -25,7 +25,7 @@ class WhisperService: @unchecked Sendable {
     }
 
     // Main transcription method
-    func transcribe(from fileURL: URL, translate: Bool = false) async -> String {
+    func transcribe(from fileURL: URL, translate: Bool) async -> String {
         guard let context = whisperContext else {
             print("❌ Whisper context not initialized")
             return ""
@@ -50,7 +50,8 @@ class WhisperService: @unchecked Sendable {
         }
     }
 
-    // Convert M4A audio file to Float samples for Whisper
+    // Convert WAV audio file to Float samples for Whisper
+    // Since audio is already recorded at 16kHz mono, conversion is simplified
     private func convertAudioToSamples(fileURL: URL) async throws -> [Float] {
         return try await withCheckedThrowingContinuation { continuation in
             Task {
@@ -63,10 +64,11 @@ class WhisperService: @unchecked Sendable {
                         return
                     }
                     
+                    // Since input is already 16kHz mono PCM, we just need to convert to float
                     let outputSettings: [String: Any] = [
                         AVFormatIDKey: kAudioFormatLinearPCM,
-                        AVSampleRateKey: 16000, // Whisper expects 16kHz
-                        AVNumberOfChannelsKey: 1, // Mono
+                        AVSampleRateKey: 16000,
+                        AVNumberOfChannelsKey: 1,
                         AVLinearPCMBitDepthKey: 32,
                         AVLinearPCMIsFloatKey: true,
                         AVLinearPCMIsBigEndianKey: false
@@ -103,7 +105,7 @@ class WhisperService: @unchecked Sendable {
                     }
                     
                     if assetReader.status == .completed {
-                        print("✅ Audio conversion completed: \(samples.count) samples")
+                        print("✅ Audio conversion completed: \(samples.count) samples at 16kHz")
                         continuation.resume(returning: samples)
                     } else {
                         continuation.resume(throwing: NSError(domain: "WhisperService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Audio reading failed: \(assetReader.error?.localizedDescription ?? "Unknown error")"]))
