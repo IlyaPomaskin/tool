@@ -13,9 +13,7 @@ Do not add or omit content.
 Respond with translated text only.
 """
         
-        static let assistant = "You are a helpful assistant. Answer VERY briefly and to the point in English."
-        
-        static let localAssistant = "You are a helpful AI assistant. Provide clear, concise, and accurate responses to user queries."
+        static let assistant = "You are a helpful assistant. Answer VERY SHORTLY and to the point in English."
     }
     
     // MARK: - LM Studio Configuration

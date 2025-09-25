@@ -50,7 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.setWaitingIcon()
-                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.assistant) ?? ""
+                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.assistant, image: capturedWindowImage) ?? ""
                 self?.setIdleIcon()
                 self?.popoverService.addMessage("🎤 LM Assistant:\n\n\(response)")
                 self?.setClipboard(response)
@@ -62,16 +62,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 self?.setRecordingIcon()
                 self?.audioRecorder.startRecording()
+
+                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
             }
         }
         lmStudoTranslateHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.setWaitingIcon()
-                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator) ?? ""
+                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator, image: capturedWindowImage) ?? ""
                 self?.setIdleIcon()
                 self?.popoverService.addMessage("🎤 LM Translator:\n\n\(response)")
                 self?.setClipboard(response)
+                capturedWindowImage = nil
             }
         }
 
