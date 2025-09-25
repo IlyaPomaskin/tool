@@ -10,14 +10,41 @@ class ScreenshotCapture: NSObject {
         super.init()
     }
 
-    // Common method for performing capture
-    private func performScreenshotCapture(arguments: [String]) async throws {
+    // Common method for performing capture to temporary file
+    private func performScreenshotCapture(arguments: [String], tempFilename: String) async throws -> NSImage? {
+        // Create temporary file path
+        let tempURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(tempFilename)
+        
+        // Add temp file path to arguments (remove -c flag for clipboard)
+        var fileArguments = arguments.filter { $0 != "-c" }
+        fileArguments.append(tempURL.path)
+        
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = arguments
+        process.arguments = fileArguments
         
         try process.run()
         process.waitUntilExit()
+        
+        // Check if file was created
+        guard FileManager.default.fileExists(atPath: tempURL.path) else {
+            print("Failed to create screenshot file at: \(tempURL.path)")
+            return nil
+        }
+        
+        // Load image from file
+        guard let image = NSImage(contentsOf: tempURL) else {
+            print("Failed to load image from file: \(tempURL.path)")
+            // Clean up temp file
+            try? FileManager.default.removeItem(at: tempURL)
+            return nil
+        }
+        
+        // Clean up temp file
+        try? FileManager.default.removeItem(at: tempURL)
+        
+        return image
     }
     
     private func getActiveWindowID() -> CGWindowID? {
@@ -67,13 +94,10 @@ class ScreenshotCapture: NSObject {
     
     func screenshotRegion() async -> NSImage? {
         do {
-            // Use common method for performing capture
-            try await performScreenshotCapture(
-                arguments: ["-i", "-c", "-x"]
+            return try await performScreenshotCapture(
+                arguments: ["-i", "-x", "-t", "jpg"],
+                tempFilename: "temp_screenshot_region_\(UUID().uuidString).jpg"
             )
-            
-            // Get image from clipboard
-            return getImageFromClipboard()
         } catch {
             print("Screenshot capture error: \(error)")
             return nil
@@ -90,38 +114,16 @@ class ScreenshotCapture: NSObject {
         print("🔍 Capturing window with ID: \(windowID)")
         
         do {
-            // Use common method for performing capture
-            try await performScreenshotCapture(
-                arguments: ["-l", "\(windowID)", "-c", "-x", "-t", "jpg"]
+            return try await performScreenshotCapture(
+                arguments: ["-l", "\(windowID)", "-x", "-t", "jpg"],
+                tempFilename: "temp_screenshot_window_\(UUID().uuidString).jpg"
             )
-            
-            // Get image from clipboard
-            guard let rawImage = getImageFromClipboard() else {
-                return nil
-            }
-
-            let image = compress ? self.compressImage(rawImage) : rawImage
-
-            // saveDebugScreenshot(image: image, filename: "debug_focused_window.png")
-
-            return image
         } catch {
             print("Window capture error: \(error)")
             return nil
         }
     }
 
-    private func getImageFromClipboard() -> NSImage? {
-        guard let pasteboard = NSPasteboard.general.data(forType: .tiff),
-              let image = NSImage(data: pasteboard) else {
-            print("Failed to get image from clipboard")
-            return nil
-        }
-        
-        // saveDebugScreenshot(image: image, filename: "debug_screenshot.png")
-        
-        return image
-    }
     
     private func saveDebugScreenshot(image: NSImage, filename: String) {
         // Convert to PNG
@@ -142,36 +144,5 @@ class ScreenshotCapture: NSObject {
         } catch {
             print("Error saving debug screenshot: \(error)")
         }
-    }
-    
-    func compressImage(_ image: NSImage) -> NSImage {
-        // Get image size
-        let originalSize = image.size
-        print("📏 Original image size: \(Int(originalSize.width))x\(Int(originalSize.height))")
-        
-        // Determine maximum size (OpenAI recommends up to 2048x2048)
-        let maxDimension: CGFloat = 1024 // Reduce for better compression
-        let scale: CGFloat
-        
-        if originalSize.width > originalSize.height {
-            scale = min(maxDimension / originalSize.width, 1.0)
-        } else {
-            scale = min(maxDimension / originalSize.height, 1.0)
-        }
-        
-        let newSize = NSSize(width: originalSize.width * scale, height: originalSize.height * scale)
-        print("📏 New image size: \(Int(newSize.width))x\(Int(newSize.height))")
-        
-        // Create new image with reduced size using native methods
-        let resizedImage = NSImage(size: newSize)
-        resizedImage.lockFocus()
-        
-        // Use high quality interpolation
-        NSGraphicsContext.current?.imageInterpolation = .high
-        image.draw(in: NSRect(origin: .zero, size: newSize))
-        
-        resizedImage.unlockFocus()
-        
-        return resizedImage
     }
 }
