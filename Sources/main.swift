@@ -39,15 +39,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                await MainActor.run {
-                    self?.setWaitingIcon()
-                }
+                self?.setWaitingIcon()
                 let response = try await self?.lmStudioService.sendMessage(transcription) ?? ""
-                await MainActor.run {
-                    self?.setIdleIcon()
-                    self?.popoverService.addMessage("🎤 LM Studio Response:\n\n\(response)")
-                    self?.setClipboard(response)
-                }
+                self?.setIdleIcon()
+                self?.popoverService.addMessage("🎤 LM Studio Response:\n\n\(response)")
+                self?.setClipboard(response)
                 capturedWindowImage = nil
             }
         }
@@ -63,15 +59,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         openAIHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                await MainActor.run {
-                    self?.setWaitingIcon()
-                }
+                self?.setWaitingIcon()
                 let response = await self?.callOpenAI(transcription: transcription, image: capturedWindowImage) ?? ""
-                await MainActor.run {
-                    self?.setIdleIcon()
-                    self?.popoverService.addMessage("🎤 OpenAI Response:\n\n\(response)")
-                    self?.setClipboard(response)
-                }
+                self?.setIdleIcon()
+                self?.popoverService.addMessage("🎤 OpenAI Response:\n\n\(response)")
+                self?.setClipboard(response)
                 capturedWindowImage = nil
             }
         }
@@ -95,15 +87,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         translateHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                await MainActor.run {
-                    self?.setWaitingIcon()
-                }
+                self?.setWaitingIcon()
                 let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator) ?? ""
-                await MainActor.run {
-                    self?.setIdleIcon()
-                    self?.popoverService.addMessage("🎤 LM Studio Translation:\n\n\(response)")
-                    self?.setClipboard(response)
-                }
+                self?.setIdleIcon()
+                self?.popoverService.addMessage("🎤 LM Studio Translation:\n\n\(response)")
+                self?.setClipboard(response)
             }
         }
     }
@@ -180,23 +168,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let titleItem = NSMenuItem(title: "Mic GPT", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menuBarMenu.addItem(titleItem)
-        
-        menuBarMenu.addItem(NSMenuItem.separator())
-        
-        // Voice recording with LM Studio
-        let recordItem = NSMenuItem(title: "🎤 LM Studio: Control + Option + Command + M", action: nil, keyEquivalent: "")
-        recordItem.target = self
-        menuBarMenu.addItem(recordItem)
-        
-        // Voice recording with OpenAI
-        let openAIItem = NSMenuItem(title: "🎤 OpenAI: Control + Option + Command + O", action: nil, keyEquivalent: "")
-        openAIItem.target = self
-        menuBarMenu.addItem(openAIItem)
-        
-        // Screenshot
-        let screenshotItem = NSMenuItem(title: "📸 OCR: Control + Option + Command + B", action: nil, keyEquivalent: "")
-        screenshotItem.target = self
-        menuBarMenu.addItem(screenshotItem)
         
         menuBarMenu.addItem(NSMenuItem.separator())
         
