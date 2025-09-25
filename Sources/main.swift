@@ -50,7 +50,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.setWaitingIcon()
-                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.assistant, image: capturedWindowImage) ?? ""
+                let response = try await self?.lmStudioService.sendMessage(
+                    transcription,
+                    systemPrompt: Constants.Prompts.assistant,
+                    // image: capturedWindowImage
+                ) ?? ""
                 self?.setIdleIcon()
                 self?.popoverService.addMessage("🎤 LM Assistant:\n\n\(response)")
                 self?.setClipboard(response)
@@ -70,7 +74,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.setWaitingIcon()
-                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator, image: capturedWindowImage) ?? ""
+                let response = try await self?.lmStudioService.sendMessage(
+                    transcription,
+                    systemPrompt: Constants.Prompts.translator,
+                    // image: capturedWindowImage
+                ) ?? ""
                 self?.setIdleIcon()
                 self?.popoverService.addMessage("🎤 LM Translator:\n\n\(response)")
                 self?.setClipboard(response)
