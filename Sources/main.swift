@@ -4,9 +4,9 @@ import OpenAI
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var recordingHotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
-    var openAIHotKey = HotKey(key: .v, modifiers: [.control, .option, .command])
-    var translateHotKey = HotKey(key: .n, modifiers: [.control, .option, .command])
+    var lmStudioAssistantHotKey = HotKey(key: .m, modifiers: [.control, .option, .command])
+    var lmStudoTranslateHotKey = HotKey(key: .n, modifiers: [.control, .option, .command])
+    var openAITranslatorHotKey = HotKey(key: .v, modifiers: [.control, .option, .command])
     var screenshotHotKey = HotKey(key: .b, modifiers: [.control, .option, .command])
     var audioRecorder = AudioRecorder()
     var openAIService = OpenAIService()
@@ -28,46 +28,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func setupGlobalHotkeys() {
         var capturedWindowImage: NSImage? = nil
 
-        recordingHotKey.keyDownHandler = { [weak self] in
-            self?.setRecordingIcon()
-            self?.audioRecorder.startRecording()
-            
-            Task {
-                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
-            }
-        }
-        recordingHotKey.keyUpHandler = { [weak self] in
-            Task {
-                let transcription = await self?.processRecording(translate: false) ?? ""
-                self?.setWaitingIcon()
-                let response = try await self?.lmStudioService.sendMessage(transcription) ?? ""
-                self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 LM Studio Response:\n\n\(response)")
-                self?.setClipboard(response)
-                capturedWindowImage = nil
-            }
-        }
-
-        openAIHotKey.keyDownHandler = { [weak self] in
-            self?.setRecordingIcon()
-            self?.audioRecorder.startRecording()
-            
-            Task {
-                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
-            }
-        }
-        openAIHotKey.keyUpHandler = { [weak self] in
-            Task {
-                let transcription = await self?.processRecording(translate: false) ?? ""
-                self?.setWaitingIcon()
-                let response = await self?.callOpenAI(transcription: transcription, image: capturedWindowImage) ?? ""
-                self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 OpenAI Response:\n\n\(response)")
-                self?.setClipboard(response)
-                capturedWindowImage = nil
-            }
-        }
-
         screenshotHotKey.keyDownHandler = { [weak self] in
             Task {
                 if let image = await self?.screenshotCapture.screenshotRegion() {
@@ -78,20 +38,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        translateHotKey.keyDownHandler = { [weak self] in
+        lmStudioAssistantHotKey.keyDownHandler = { [weak self] in
+            self?.setRecordingIcon()
+            self?.audioRecorder.startRecording()
+            
+            Task {
+                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
+            }
+        }
+        lmStudioAssistantHotKey.keyUpHandler = { [weak self] in
+            Task {
+                let transcription = await self?.processRecording(translate: false) ?? ""
+                self?.setWaitingIcon()
+                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.assistant) ?? ""
+                self?.setIdleIcon()
+                self?.popoverService.addMessage("🎤 LM Assistant:\n\n\(response)")
+                self?.setClipboard(response)
+                capturedWindowImage = nil
+            }
+        }
+
+        lmStudoTranslateHotKey.keyDownHandler = { [weak self] in
             Task {
                 self?.setRecordingIcon()
                 self?.audioRecorder.startRecording()
             }
         }
-        translateHotKey.keyUpHandler = { [weak self] in
+        lmStudoTranslateHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
                 self?.setWaitingIcon()
                 let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator) ?? ""
                 self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 LM Studio Translation:\n\n\(response)")
+                self?.popoverService.addMessage("🎤 LM Translator:\n\n\(response)")
                 self?.setClipboard(response)
+            }
+        }
+
+        openAITranslatorHotKey.keyDownHandler = { [weak self] in
+            self?.setRecordingIcon()
+            self?.audioRecorder.startRecording()
+            
+            Task {
+                capturedWindowImage = await self?.screenshotCapture.screenshotFocusedWindow(compress: true)
+            }
+        }
+        openAITranslatorHotKey.keyUpHandler = { [weak self] in
+            Task {
+                let transcription = await self?.processRecording(translate: false) ?? ""
+                self?.setWaitingIcon()
+                let response = await self?.callOpenAITranslator(transcription: transcription, image: capturedWindowImage) ?? ""
+                self?.setIdleIcon()
+                self?.popoverService.addMessage("🎤 OpenAI Assistant:\n\n\(response)")
+                self?.setClipboard(response)
+                capturedWindowImage = nil
             }
         }
     }
@@ -104,13 +104,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return transcription
     }
 
-    func callOpenAI(transcription: String, image: NSImage? = nil) async -> String {
+    func callOpenAITranslator(transcription: String, image: NSImage? = nil) async -> String {
         let response: String
         do {
             if let image = image {
                 response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator, image: image)
             } else {
-                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.assistant)
+                response = try await openAIService.callResponseAPI(with: transcription, instructions: Constants.Prompts.translator)
             }
         } catch {
             response = "Error: \(error.localizedDescription)"
