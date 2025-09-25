@@ -14,7 +14,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var whisperService = WhisperService(modelFileName: "ggml-large-v3-turbo.bin")
     var screenshotCapture = ScreenshotCapture()
     var ocrService = OCRService()
-    // var capturedWindowImage: NSImage? = nil
     
     var statusItem: NSStatusItem!
     var menuBarMenu: NSMenu!
@@ -110,21 +109,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func processRecording(translate: Bool = false) async -> String {
-        guard statusItem != nil else { return "" }
-        
         let fileURL = audioRecorder.stopRecording()
 
         let transcription = await whisperService.transcribe(from: fileURL, translate: translate)
-        if transcription.isEmpty {
-            return ""
-        }
 
         return transcription
     }
 
     func callOpenAI(transcription: String, image: NSImage? = nil) async -> String {
-        guard statusItem != nil else { return "" }
-        
         let response: String
         do {
             if let image = image {
