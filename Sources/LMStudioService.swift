@@ -90,67 +90,8 @@ class LMStudioService: @unchecked Sendable {
         }
     }
     
-    // Send transcribed text to LM Studio
-    func sendMessage(_ message: String, systemPrompt: String? = nil) async throws -> String {
-        let url = URL(string: "\(baseURL)/chat/completions")!
-        
-        var messages: [ChatRequest.Message] = []
-        
-        // Add system prompt if provided
-        if let systemPrompt = systemPrompt {
-            messages.append(ChatRequest.Message(role: "system", content: .text(systemPrompt)))
-        }
-        
-        // Add user message
-        messages.append(ChatRequest.Message(role: "user", content: .text(message)))
-        
-        let requestBody = ChatRequest(
-            model: model,
-            messages: messages,
-            temperature: 0.2,
-            max_tokens: 1000,
-            stream: false
-        )
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
-        print("🤖 Sending message to LM Studio: \(message)")
-        
-        do {
-            let (data, response) = try await session.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "LMStudioService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid response type"])
-            }
-            
-            guard httpResponse.statusCode == 200 else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw NSError(domain: "LMStudioService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode): \(errorMessage)"])
-            }
-            
-            let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-            
-            guard let firstChoice = chatResponse.choices.first else {
-                throw NSError(domain: "LMStudioService", code: 3, userInfo: [NSLocalizedDescriptionKey: "No response choices available"])
-            }
-            
-            let responseText = firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            print("✅ LM Studio response received: \(responseText)")
-            
-            return responseText
-            
-        } catch {
-            throw NSError(domain: "LMStudioService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Network error: \(error.localizedDescription)"])
-        }
-    }
-    
-    // Send transcribed text to LM Studio with image support
-    func sendMessage(_ message: String, systemPrompt: String? = nil, image: NSImage? = nil) async throws -> String {
-        let url = URL(string: "\(baseURL)/chat/completions")!
-        
+    // Helper function to create messages array
+    private func createMessages(userMessage: String, systemPrompt: String?, image: NSImage?) throws -> [ChatRequest.Message] {
         var messages: [ChatRequest.Message] = []
         
         // Add system prompt if provided
@@ -163,14 +104,21 @@ class LMStudioService: @unchecked Sendable {
             // Create multimodal message with text and image
             let imageBase64 = try convertImageToBase64(image)
             let contentItems = [
-                ContentItem(type: "text", text: message, image_url: nil),
+                ContentItem(type: "text", text: userMessage, image_url: nil),
                 ContentItem(type: "image_url", text: nil, image_url: ImageURL(url: imageBase64, detail: "auto"))
             ]
             messages.append(ChatRequest.Message(role: "user", content: .contentArray(contentItems)))
         } else {
             // Text-only message
-            messages.append(ChatRequest.Message(role: "user", content: .text(message)))
+            messages.append(ChatRequest.Message(role: "user", content: .text(userMessage)))
         }
+        
+        return messages
+    }
+    
+    // Helper function to execute chat request
+    private func executeChatRequest(messages: [ChatRequest.Message], userMessage: String) async throws -> String {
+        let url = URL(string: "\(baseURL)/chat/completions")!
         
         let requestBody = ChatRequest(
             model: model,
@@ -185,34 +133,28 @@ class LMStudioService: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        let messageDescription = image != nil ? "message with image" : "message"
-        print("🤖 Sending \(messageDescription) to LM Studio: \(message)")
-        
-        do {
-            let (data, response) = try await session.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "LMStudioService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid response type"])
+        // Determine if message contains image by checking content type
+        let hasImage = messages.contains { message in
+            if case .contentArray(let items) = message.content {
+                return items.contains { $0.type == "image_url" }
             }
-            
-            guard httpResponse.statusCode == 200 else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw NSError(domain: "LMStudioService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode): \(errorMessage)"])
-            }
-            
-            let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-            
-            guard let firstChoice = chatResponse.choices.first else {
-                throw NSError(domain: "LMStudioService", code: 3, userInfo: [NSLocalizedDescriptionKey: "No response choices available"])
-            }
-            
-            let responseText = firstChoice.message.content
-            print("✅ LM Studio response received: \(responseText)")
-            
-            return responseText
-        } catch {
-            throw NSError(domain: "LMStudioService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Network error: \(error.localizedDescription)"])
+            return false
         }
+        
+        let messageDescription = hasImage ? "message with image" : "message"
+        print("🤖 Sending \(messageDescription) to LM Studio: \(userMessage)")
+        
+        let (data, _) = try await session.data(for: request)
+        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        let responseText = chatResponse.choices.first!.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("✅ LM Studio response received: \(responseText)")
+        
+        return responseText
+    }
+    
+    func sendMessage(_ message: String, systemPrompt: String? = nil, image: NSImage? = nil) async throws -> String {
+        let messages = try createMessages(userMessage: message, systemPrompt: systemPrompt, image: image)
+        return try await executeChatRequest(messages: messages, userMessage: message)
     }
     
     // Convert NSImage to base64 data URL
