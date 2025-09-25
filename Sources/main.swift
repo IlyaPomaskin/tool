@@ -17,11 +17,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     var statusItem: NSStatusItem!
     var menuBarMenu: NSMenu!
-    var popoverService = PopoverService()
+    var tooltipService = TooltipService()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupGlobalHotkeys()
-        
         setupMenuBar()
     }
     
@@ -32,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 if let image = await self?.screenshotCapture.screenshotRegion() {
                     let extractedText = try await self?.ocrService.extractText(from: image) ?? ""
-                    self?.popoverService.addMessage("📸 OCR:\n\n\(extractedText)")
+                    self?.tooltipService.showTooltip(extractedText, title: "📸 OCR Result")
                     self?.setClipboard(extractedText)
                 }
             }
@@ -56,7 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // image: capturedWindowImage
                 ) ?? ""
                 self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 LM Assistant:\n\n\(response)")
+                self?.tooltipService.showTooltip(response, title: "🎤 LM Assistant")
                 self?.setClipboard(response)
                 capturedWindowImage = nil
             }
@@ -80,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // image: capturedWindowImage
                 ) ?? ""
                 self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 LM Translator:\n\n\(response)")
+                self?.tooltipService.showTooltip(response, title: "🎤 LM Translator")
                 self?.setClipboard(response)
                 capturedWindowImage = nil
             }
@@ -100,7 +99,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.setWaitingIcon()
                 let response = await self?.callOpenAITranslator(transcription: transcription, image: capturedWindowImage) ?? ""
                 self?.setIdleIcon()
-                self?.popoverService.addMessage("🎤 OpenAI Assistant:\n\n\(response)")
+                self?.tooltipService.showTooltip(response, title: "🎤 OpenAI Assistant")
                 self?.setClipboard(response)
                 capturedWindowImage = nil
             }
@@ -140,8 +139,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             setIdleIcon()
             button.target = self
             
-            // Set button in PopoverService
-            popoverService.setButton(button)
+            // Set button in tooltipService
+            tooltipService.setStatusButton(button)
         }
         
         setupMenu()
