@@ -133,17 +133,6 @@ class LMStudioService: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        // Determine if message contains image by checking content type
-        let hasImage = messages.contains { message in
-            if case .contentArray(let items) = message.content {
-                return items.contains { $0.type == "image_url" }
-            }
-            return false
-        }
-        
-        let messageDescription = hasImage ? "message with image" : "message"
-        print("🤖 Sending \(messageDescription) to LM Studio: \(userMessage)")
-        
         let (data, _) = try await session.data(for: request)
         let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
         let responseText = chatResponse.choices.first!.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
