@@ -30,6 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var capturedWindowImage: NSImage? = nil
 
         recordingHotKey.keyDownHandler = { [weak self] in
+            self?.setRecordingIcon()
             self?.audioRecorder.startRecording()
             
             Task {
@@ -39,17 +40,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                self?.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
-                self?.setClipboard(transcription)
-                
-                // Call LM Studio instead of OpenAI
-                let response = await self?.callLMStudio(transcription: transcription) ?? ""
-                self?.setClipboard(response)
+                await MainActor.run {
+                    self?.setWaitingIcon()
+                }
+                let response = try await self?.lmStudioService.sendMessage(transcription) ?? ""
+                await MainActor.run {
+                    self?.setIdleIcon()
+                    self?.popoverService.addMessage("🎤 LM Studio Response:\n\n\(response)")
+                    self?.setClipboard(response)
+                }
                 capturedWindowImage = nil
             }
         }
 
         openAIHotKey.keyDownHandler = { [weak self] in
+            self?.setRecordingIcon()
             self?.audioRecorder.startRecording()
             
             Task {
@@ -59,12 +64,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         openAIHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                self?.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
-                self?.setClipboard(transcription)
-                
-                // Call OpenAI with image context
+                await MainActor.run {
+                    self?.setWaitingIcon()
+                }
                 let response = await self?.callOpenAI(transcription: transcription, image: capturedWindowImage) ?? ""
-                self?.setClipboard(response)
+                await MainActor.run {
+                    self?.setIdleIcon()
+                    self?.popoverService.addMessage("🎤 OpenAI Response:\n\n\(response)")
+                    self?.setClipboard(response)
+                }
                 capturedWindowImage = nil
             }
         }
@@ -72,21 +80,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         screenshotHotKey.keyDownHandler = { [weak self] in
             Task {
                 if let image = await self?.screenshotCapture.screenshotRegion() {
-                    await self?.screenshotOcr(image)
+                    let extractedText = try await self?.ocrService.extractText(from: image) ?? ""
+                    self?.popoverService.addMessage("📸 OCR:\n\n\(extractedText)")
+                    self?.setClipboard(extractedText)
                 }
             }
         }
 
         translateHotKey.keyDownHandler = { [weak self] in
             Task {
+                self?.setRecordingIcon()
                 self?.audioRecorder.startRecording()
             }
         }
         translateHotKey.keyUpHandler = { [weak self] in
             Task {
                 let transcription = await self?.processRecording(translate: false) ?? ""
-                self?.popoverService.addMessage("🎤 Local Translation:\n\n\(transcription)")
-                self?.setClipboard(transcription)
+                await MainActor.run {
+                    self?.setWaitingIcon()
+                }
+                let response = try await self?.lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator) ?? ""
+                await MainActor.run {
+                    self?.setIdleIcon()
+                    self?.popoverService.addMessage("🎤 LM Studio Translation:\n\n\(response)")
+                    self?.setClipboard(response)
+                }
             }
         }
     }
@@ -96,15 +114,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let fileURL = audioRecorder.stopRecording()
 
-        self.popoverService.addMessage("🎤 Processing audio...")
-        
         let transcription = await whisperService.transcribe(from: fileURL, translate: translate)
         if transcription.isEmpty {
-            self.popoverService.addMessage("🎤 No transcription available")
             return ""
         }
-
-        self.popoverService.addMessage("🎤 Local Transcription:\n\n\(transcription)")
 
         return transcription
     }
@@ -123,27 +136,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             response = "Error: \(error.localizedDescription)"
         }
         
-        self.popoverService.addMessage("🤖 Response:\n\n\(response)")
-        return response
-    }
-    
-    func callLMStudio(transcription: String) async -> String {
-        guard statusItem != nil else { return "" }
-        
-        let response: String
-        do {
-            // Check if LM Studio is available first
-            let isAvailable = await lmStudioService.checkAvailability()
-            if !isAvailable {
-                response = "❌ LM Studio not available. Make sure it's running on \(Constants.LMStudio.defaultBaseURL)"
-            } else {
-                response = try await lmStudioService.sendMessage(transcription, systemPrompt: Constants.Prompts.translator)
-            }
-        } catch {
-            response = "Error: \(error.localizedDescription)"
-        }
-        
-        self.popoverService.addMessage("🤖 LM Studio Response:\n\n\(response)")
         return response
     }
     
@@ -154,14 +146,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create icon from system symbol
         if let button = statusItem.button {
             // Use system microphone icon
-            button.image = NSImage(systemSymbolName: "tuningfork", accessibilityDescription: "Mic GPT")
-            button.image?.size = NSSize(width: 18, height: 18)
+            setIdleIcon()
             button.target = self
             
             // Set button in PopoverService
             popoverService.setButton(button)
         }
         
+        setupMenu()
+    }
+    
+    private func setIdleIcon() {
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: "tuningfork", accessibilityDescription: "Mic GPT")
+            button.image?.size = NSSize(width: 18, height: 18)
+        }
+    }
+    
+    private func setRecordingIcon() {
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "Recording...")
+            button.image?.size = NSSize(width: 18, height: 18)
+            // Make it red to indicate recording
+            button.image?.isTemplate = false
+        }
+    }
+    
+    private func setWaitingIcon() {
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Processing...")
+            button.image?.size = NSSize(width: 18, height: 18)
+            button.image?.isTemplate = true
+        }
+    }
+    
+    private func setupMenu() {
         // Create menu
         menuBarMenu = NSMenu()
         
@@ -204,27 +223,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pasteboard.setString(text, forType: .string)
     }
 
-    private func screenshotOcr(_ image: NSImage) async {
-        do {
-            let extractedText = try await ocrService.extractText(from: image)
-            print("Extracted text: \(extractedText)")
-            
-            setClipboard(extractedText)
-            
-            await MainActor.run {
-                // Show popover with OCR results
-                self.popoverService.addMessage("📸 Extracted text:\n\n\(extractedText)")
-            }
-        } catch {
-            print("OCR error: \(error.localizedDescription)")
-            let errorMessage = "❌ Text recognition error: \(error.localizedDescription)"
-            
-            await MainActor.run {
-                self.popoverService.addMessage(errorMessage)
-            }
-        }
-    }
-    
     @objc func quitApp() {
         NSApplication.shared.terminate(nil)
     }
